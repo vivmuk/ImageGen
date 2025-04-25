@@ -5,11 +5,12 @@ const API_KEY = "1HuCqCKmjn0F9cV3wh1STZkaTNlfxhTuqdIcdPQaem";
 
 // Model options from Venice AI
 const MODELS = [
-  { id: "fluently-xl", name: "Fluently-XL-Final" },
-  { id: "flux-dev", name: "FLUX.1-dev" },
-  { id: "flux-dev-uncensored", name: "FLUX.1-dev (uncensored)" },
-  { id: "pony-realism", name: "Pony-Realism" },
+  { id: "flux-dev", name: "FLUX.1-dev (High Quality)" },
+  { id: "venice-sd35", name: "Venice SD 3.5 (New)" },
   { id: "stable-diffusion-3.5", name: "Stable-Diffusion-3.5-Large" },
+  { id: "fluently-xl", name: "Fluently-XL-Final (Fast)" },
+  { id: "flux-dev-uncensored", name: "FLUX.1-dev (Uncensored)" },
+  { id: "pony-realism", name: "Pony-Realism" },
   { id: "lustify-sdxl", name: "Lustify-SDXL-NSFW-Checkpoint" }
 ];
 
@@ -89,7 +90,7 @@ class VeniceImageGenerator {
     const modelSelect = document.getElementById('model');
     if (modelSelect) {
       modelSelect.innerHTML = MODELS.map(model => 
-        `<option value="${model.id}" ${model.id === "flux-dev" ? "selected" : ""}>${model.name}</option>`
+        `<option value="${model.id}" ${model.id === "venice-sd35" ? "selected" : ""}>${model.name}</option>`
       ).join('');
     }
     
