@@ -3,16 +3,46 @@
 // API Key (as provided)
 const API_KEY = "1HuCqCKmjn0F9cV3wh1STZkaTNlfxhTuqdIcdPQaem";
 
-// Model options from Venice AI
-const MODELS = [
-  { id: "flux-dev", name: "FLUX.1-dev (High Quality)" },
-  { id: "venice-sd35", name: "Venice SD 3.5 (New)" },
-  { id: "stable-diffusion-3.5", name: "Stable-Diffusion-3.5-Large" },
-  { id: "fluently-xl", name: "Fluently-XL-Final (Fast)" },
-  { id: "flux-dev-uncensored", name: "FLUX.1-dev (Uncensored)" },
-  { id: "pony-realism", name: "Pony-Realism" },
-  { id: "lustify-sdxl", name: "Lustify-SDXL-NSFW-Checkpoint" }
-];
+// Model options from Venice AI (will be populated dynamically)
+let MODELS = [];
+
+// Function to fetch available models from Venice AI API
+async function fetchModels() {
+  try {
+    const response = await fetch('https://api.venice.ai/api/v1/models?type=image', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    // Transform the API response to our format
+    MODELS = data.data.map(model => ({
+      id: model.id,
+      name: model.model_spec?.name || model.id,
+      traits: model.model_spec?.traits || []
+    }));
+
+    console.log('Fetched models:', MODELS);
+    return MODELS;
+  } catch (error) {
+    console.error('Error fetching models:', error);
+    // Fallback to a basic model list if API fails
+    MODELS = [
+      { id: "flux-dev", name: "FLUX Standard", traits: ["highest_quality"] },
+      { id: "venice-sd35", name: "Venice SD35", traits: ["default"] },
+      { id: "stable-diffusion-3.5", name: "Stable Diffusion 3.5", traits: [] }
+    ];
+    return MODELS;
+  }
+}
 
 // Style presets from Venice AI
 const STYLE_PRESETS = [
@@ -77,12 +107,18 @@ const RESOLUTION_PRESETS = {
 // Main application class
 class VeniceImageGenerator {
   constructor() {
-    this.setupDOM();
-    this.setupTabs();
-    this.addEventListeners();
     this.generatedImages = [];
     this.progressInterval = null;
     this.startTime = null;
+    this.initializeApp();
+  }
+
+  async initializeApp() {
+    // Fetch models first, then setup DOM
+    await fetchModels();
+    this.setupDOM();
+    this.setupTabs();
+    this.addEventListeners();
   }
 
   setupDOM() {
@@ -90,7 +126,7 @@ class VeniceImageGenerator {
     const modelSelect = document.getElementById('model');
     if (modelSelect) {
       modelSelect.innerHTML = MODELS.map(model => 
-        `<option value="${model.id}" ${model.id === "venice-sd35" ? "selected" : ""}>${model.name}</option>`
+        `<option value="${model.id}" ${model.id === "flux-dev" ? "selected" : ""}>${model.name}</option>`
       ).join('');
     }
     
