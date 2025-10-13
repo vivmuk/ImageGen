@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>V's Image Generator</title>
+  <link rel="stylesheet" href="styles.css">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-dark-bg min-h-screen font-inter">
+  <div class="container mx-auto py-8 px-4">
+    <header class="mb-8">
+      <h1 class="text-4xl font-bold app-title text-center">
+        <i class="fas fa-paint-brush text-neon-pink mr-2"></i>
+        V's Image Generator
+      </h1>
+      <p class="text-center text-medium mt-2">Create stunning AI-generated images with custom styles</p>
+    </header>
+    
+    <div id="app" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <!-- Left column: Controls -->
+      <div class="control-panel">
+        <div class="form-container mb-4">
+          <div class="tabs flex border-b border-neon-pink border-opacity-30 mb-4">
+            <button id="generator-tab" class="tab-button active px-4 py-2 mr-2 focus:outline-none">
+              <i class="fas fa-image mr-2"></i>Generator
+            </button>
+            <button id="optimizer-tab" class="tab-button px-4 py-2 focus:outline-none">
+              <i class="fas fa-magic mr-2"></i>Prompt Optimizer
+            </button>
+          </div>
+          
+          <!-- Generator Form -->
+          <div id="generator-panel" class="tab-panel">
+            <form id="generate-form" class="space-y-4">
+              <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label class="input-label" for="model">
+                    <i class="fas fa-microchip text-neon-pink mr-2"></i>Model
+                  </label>
+                  <select id="model" class="select-input">
+                    <!-- Options will be populated by JavaScript -->
+                  </select>
+                </div>
+                
+                <div>
+                  <label class="input-label" for="style">
+                    <i class="fas fa-palette text-neon-pink mr-2"></i>Style Preset
+                    <span class="text-xs ml-1 text-neon-blue">(select None for no preset)</span>
+                  </label>
+                  <select id="style" class="select-input">
+                    <!-- Options will be populated by JavaScript -->
+                  </select>
+                </div>
+              </div>
+              
+              <div>
+                <label class="input-label" for="prompt">
+                  <i class="fas fa-comment-alt text-neon-pink mr-2"></i>Prompt
+                </label>
+                <textarea id="prompt" placeholder="Describe what you want to generate..." rows="3" class="input-textarea"></textarea>
+              </div>
+              
+              <div>
+                <label class="input-label" for="negative-prompt">
+                  <i class="fas fa-ban text-neon-pink mr-2"></i>Negative Prompt (optional)
+                </label>
+                <textarea id="negative-prompt" placeholder="Describe what you don't want in the image..." rows="2" class="input-textarea"></textarea>
+              </div>
+              
+              <div>
+                <label class="input-label" for="banner-text">
+                  <i class="fas fa-text-width text-neon-pink mr-2"></i>Banner Text (optional)
+                  <span class="text-xs ml-1 text-neon-blue">(will be added as a red banner with white text at the top of the image)</span>
+                </label>
+                <input type="text" id="banner-text" placeholder="Text to display on the image..." class="input-text">
+              </div>
+              
+              <div class="grid md:grid-cols-3 gap-4">
+                <div>
+                  <label class="input-label" for="aspect-ratio">
+                    <i class="fas fa-crop-alt text-neon-pink mr-2"></i>Aspect Ratio
+                  </label>
+                  <select id="aspect-ratio" class="select-input">
+                    <option value="16:9">Cinema (16:9)</option>
+                    <option value="1:1">Square (1:1)</option>
+                    <option value="3:2">Landscape (3:2)</option>
+                    <option value="9:16">Tall (9:16)</option>
+                    <option value="2:3">Portrait (2:3)</option>
+                    <option value="4:3">Classic (4:3)</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label class="input-label" for="resolution">
+                    <i class="fas fa-expand-arrows-alt text-neon-pink mr-2"></i>Resolution
+                  </label>
+                  <select id="resolution" class="select-input">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                    <option value="ultra">Ultra</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label class="input-label" for="steps">
+                    <i class="fas fa-project-diagram text-neon-pink mr-2"></i>Steps
+                  </label>
+                  <select id="steps" class="select-input">
+                    <option value="10">10 (Fast)</option>
+                    <option value="20" selected>20 (Standard)</option>
+                    <option value="30">30 (Quality)</option>
+                    <option value="40">40 (High Quality)</option>
+                    <option value="50">50 (Maximum)</option>
+                  </select>
+                </div>
+              </div>
+              
+              <!-- Hidden inputs for width and height that will be calculated based on aspect ratio -->
+              <input type="hidden" id="width" value="1024">
+              <input type="hidden" id="height" value="576">
+              
+              <div class="flex justify-center">
+                <button type="submit" id="generate-button" class="action-button">
+                  <i class="fas fa-magic mr-2"></i>Generate Image
+                </button>
+              </div>
+            </form>
+          </div>
+          
+          <!-- Prompt Optimizer Panel -->
+          <div id="optimizer-panel" class="tab-panel hidden">
+            <div class="space-y-4">
+              <div>
+                <label class="input-label" for="initial-prompt">
+                  <i class="fas fa-lightbulb text-neon-pink mr-2"></i>Initial Prompt
+                </label>
+                <textarea id="initial-prompt" placeholder="Enter your initial image idea..." rows="3" class="input-textarea"></textarea>
+              </div>
+              
+              <div class="flex justify-center">
+                <button id="optimize-button" class="action-button">
+                  <i class="fas fa-wand-magic-sparkles mr-2"></i>Optimize Prompt
+                </button>
+              </div>
+              
+              <div id="optimization-result" class="hidden">
+                <label class="input-label">
+                  <i class="fas fa-check-circle text-neon-pink mr-2"></i>Optimized Prompt
+                </label>
+                <div class="p-3 bg-darker-bg border border-neon-pink rounded-md">
+                  <p id="optimized-prompt-text" class="text-light"></p>
+                </div>
+                <div class="flex justify-center mt-4">
+                  <button id="use-optimized-prompt" class="secondary-button">
+                    <i class="fas fa-arrow-right-to-bracket mr-2"></i>Use This Prompt
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Right column: Results -->
+      <div class="results-panel">
+        <!-- Progress indicator moved to results panel -->
+        <div id="progress-container" class="hidden mb-6">
+          <div class="flex justify-between items-center mb-1">
+            <span class="text-sm text-light font-medium">Generating image...</span>
+            <span id="time-counter" class="text-sm font-medium text-neon-blue">0.0s</span>
+          </div>
+          <div class="h-2 w-full bg-darker-bg rounded-full overflow-hidden">
+            <div id="progress-bar" class="h-full" style="width: 0%"></div>
+          </div>
+          <div class="flex justify-between mt-1 text-xs text-medium">
+            <span>Processing</span>
+            <span id="progress-percentage">0%</span>
+          </div>
+        </div>
+        
+        <div id="result" class="hidden mb-8">
+          <h2 class="text-xl font-bold mb-4 text-light flex items-center">
+            <i class="fas fa-image text-neon-pink mr-2"></i>Generated Image
+          </h2>
+          <div class="image-container">
+            <img id="generated-image" src="" alt="Generated image" class="image-preview">
+            <div id="image-banner" class="banner-overlay hidden"></div>
+          </div>
+          <div class="flex justify-center mt-4 space-x-4">
+            <button id="download-button" class="action-button-sm">
+              <i class="fas fa-download mr-2"></i>Download
+            </button>
+            <button id="save-gallery-button" class="action-button-sm">
+              <i class="fas fa-save mr-2"></i>Save to Gallery
+            </button>
+          </div>
+          
+          <div class="mt-6 pt-4 border-t border-neon-pink border-opacity-30">
+            <h3 class="text-sm font-medium text-light mb-2">Image Details</h3>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <span class="text-xs text-medium">Model:</span>
+                <span id="result-model" class="text-xs font-medium ml-1 text-neon-blue"></span>
+              </div>
+              <div>
+                <span class="text-xs text-medium">Style:</span>
+                <span id="result-style" class="text-xs font-medium ml-1 text-neon-blue"></span>
+              </div>
+              <div>
+                <span class="text-xs text-medium">Size:</span>
+                <span id="result-size" class="text-xs font-medium ml-1 text-neon-blue"></span>
+              </div>
+              <div>
+                <span class="text-xs text-medium">Steps:</span>
+                <span id="result-steps" class="text-xs font-medium ml-1 text-neon-blue"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div id="placeholder" class="flex flex-col items-center justify-center h-64 border-2 border-dashed border-neon-pink rounded-lg">
+          <i class="fas fa-image text-neon-pink text-5xl mb-4"></i>
+          <p class="text-light text-center">Your generated image will appear here</p>
+          <p class="text-medium text-sm text-center mt-2">Choose your settings and click "Generate Image"</p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Gallery Section -->
+    <div id="gallery-section" class="mt-12 hidden">
+      <h2 class="text-2xl font-bold mb-4 text-light flex items-center">
+        <i class="fas fa-images text-neon-pink mr-2"></i>Your Image Gallery
+      </h2>
+      <div id="image-gallery" class="grid-gallery">
+        <!-- Gallery images will be added here -->
+      </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="mt-12 pt-6 border-t border-neon-pink border-opacity-30">
+      <p class="text-center text-sm text-medium">
+        Powered by Venice AI API
+      </p>
+    </footer>
+  </div>
+  
+  <script src="app.js"></script>
+</body>
+</html> 
