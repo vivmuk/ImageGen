@@ -6,20 +6,117 @@ const API_KEY = "1HuCqCKmjn0F9cV3wh1STZkaTNlfxhTuqdIcdPQaem";
 // Model options from Venice AI (will be populated dynamically)
 let MODELS = [];
 
+// Fallback models when API fails
+const FALLBACK_MODELS = [
+  {
+    id: "flux-dev",
+    name: "FLUX Standard",
+    traits: ["highest_quality"],
+    constraints: {
+      promptCharacterLimit: 2048,
+      steps: { default: 25, max: 30 },
+      widthHeightDivisor: 8
+    }
+  },
+  {
+    id: "flux-dev-uncensored",
+    name: "FLUX Custom",
+    traits: [],
+    constraints: {
+      promptCharacterLimit: 2048,
+      steps: { default: 25, max: 30 },
+      widthHeightDivisor: 8
+    }
+  },
+  {
+    id: "venice-sd35",
+    name: "Venice SD35",
+    traits: ["default", "eliza-default"],
+    constraints: {
+      promptCharacterLimit: 1500,
+      steps: { default: 25, max: 30 },
+      widthHeightDivisor: 16
+    }
+  },
+  {
+    id: "stable-diffusion-3.5",
+    name: "Stable Diffusion 3.5",
+    traits: [],
+    constraints: {
+      promptCharacterLimit: 1500,
+      steps: { default: 25, max: 30 },
+      widthHeightDivisor: 16
+    }
+  },
+  {
+    id: "hidream",
+    name: "HiDream",
+    traits: [],
+    constraints: {
+      promptCharacterLimit: 1500,
+      steps: { default: 20, max: 50 },
+      widthHeightDivisor: 8
+    }
+  },
+  {
+    id: "fluently-xl",
+    name: "Fluently XL Final",
+    traits: ["fastest"],
+    constraints: {
+      promptCharacterLimit: 1500,
+      steps: { default: 20, max: 50 },
+      widthHeightDivisor: 8
+    }
+  },
+  {
+    id: "lustify-sdxl",
+    name: "Lustify SDXL",
+    traits: [],
+    constraints: {
+      promptCharacterLimit: 1500,
+      steps: { default: 20, max: 50 },
+      widthHeightDivisor: 8
+    }
+  },
+  {
+    id: "pony-realism",
+    name: "Pony Realism",
+    traits: ["most_uncensored"],
+    constraints: {
+      promptCharacterLimit: 1500,
+      steps: { default: 20, max: 50 },
+      widthHeightDivisor: 8
+    }
+  }
+];
+
 // Function to fetch available models from Venice AI API
 async function fetchModels() {
   try {
-    // Use CORS proxy to avoid CORS issues on deployed sites
-    const proxyUrl = 'https://api.allorigins.win/raw?url=';
-    const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/models?type=image');
-    const response = await fetch(proxyUrl + targetUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${API_KEY}`,
-        'Content-Type': 'application/json',
-        'X-Requested-With': 'XMLHttpRequest'
-      }
-    });
+    // Try direct API call first
+    let response;
+    try {
+      response = await fetch('https://api.venice.ai/api/v1/models?type=image', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+    } catch (directError) {
+      console.log('Direct API failed, trying CORS proxy');
+      // Use CORS proxy as fallback
+      const proxyUrl = 'https://api.allorigins.win/raw?url=';
+      const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/models?type=image');
+      response = await fetch(proxyUrl + targetUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+    }
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -41,13 +138,10 @@ async function fetchModels() {
     return MODELS;
   } catch (error) {
     console.error('Error fetching models:', error);
-    // Fallback to a basic model list if API fails
-    MODELS = [
-      { id: "flux-dev", name: "FLUX Standard", traits: ["highest_quality"] },
-      { id: "venice-sd35", name: "Venice SD35", traits: ["default"] },
-      { id: "stable-diffusion-3.5", name: "Stable Diffusion 3.5", traits: [] }
-    ];
-    return MODELS;
+    console.log('Using fallback models');
+    // Fallback to full model list if API fails
+    MODELS = FALLBACK_MODELS;
+    return FALLBACK_MODELS;
   }
 }
 
@@ -434,18 +528,31 @@ class VeniceImageGenerator {
       
       console.log('Sending request with payload:', payload);
       
-      // Call Venice API with CORS proxy
-      const proxyUrl = 'https://api.allorigins.win/raw?url=';
-      const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/image/generate');
-      const response = await fetch(proxyUrl + targetUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${API_KEY}`,
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify(payload)
-      });
+      // Try direct API call first, then fallback to proxy
+      let response;
+      try {
+        response = await fetch('https://api.venice.ai/api/v1/image/generate', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+      } catch (directError) {
+        console.log('Direct API failed, trying CORS proxy');
+        const proxyUrl = 'https://api.allorigins.win/raw?url=';
+        const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/image/generate');
+        response = await fetch(proxyUrl + targetUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify(payload)
+        });
+      }
       
       // Handle API response
       const result = await response.json();
@@ -596,18 +703,31 @@ class VeniceImageGenerator {
         temperature: 0.7
       };
       
-      // Call Venice API for prompt optimization with CORS proxy
-      const proxyUrl = 'https://api.allorigins.win/raw?url=';
-      const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/chat/completions');
-      const response = await fetch(proxyUrl + targetUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${API_KEY}`,
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify(chatPayload)
-      });
+      // Try direct API call first, then fallback to proxy
+      let response;
+      try {
+        response = await fetch('https://api.venice.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(chatPayload)
+        });
+      } catch (directError) {
+        console.log('Direct API failed, trying CORS proxy');
+        const proxyUrl = 'https://api.allorigins.win/raw?url=';
+        const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/chat/completions');
+        response = await fetch(proxyUrl + targetUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify(chatPayload)
+        });
+      }
       
       // Handle API response
       const result = await response.json();
@@ -923,18 +1043,31 @@ class VeniceImageGenerator {
     console.log(`Payload for ${model.name}:`, payload);
     
     try {
-      // Use CORS proxy for deployed sites
-      const proxyUrl = 'https://api.allorigins.win/raw?url=';
-      const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/image/generate');
-      const response = await fetch(proxyUrl + targetUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${API_KEY}`,
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: JSON.stringify(payload)
-      });
+      // Try direct API call first, then fallback to proxy
+      let response;
+      try {
+        response = await fetch('https://api.venice.ai/api/v1/image/generate', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+      } catch (directError) {
+        console.log('Direct API failed, trying CORS proxy');
+        const proxyUrl = 'https://api.allorigins.win/raw?url=';
+        const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/image/generate');
+        response = await fetch(proxyUrl + targetUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify(payload)
+        });
+      }
       
       const result = await response.json();
       console.log(`Response for ${model.name}:`, result);
