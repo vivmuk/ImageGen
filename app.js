@@ -9,11 +9,15 @@ let MODELS = [];
 // Function to fetch available models from Venice AI API
 async function fetchModels() {
   try {
-    const response = await fetch('https://api.venice.ai/api/v1/models?type=image', {
+    // Use CORS proxy to avoid CORS issues on deployed sites
+    const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+    const targetUrl = 'https://api.venice.ai/api/v1/models?type=image';
+    const response = await fetch(proxyUrl + targetUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${API_KEY}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
       }
     });
 
@@ -430,12 +434,15 @@ class VeniceImageGenerator {
       
       console.log('Sending request with payload:', payload);
       
-      // Call Venice API
-      const response = await fetch('https://api.venice.ai/api/v1/image/generate', {
+      // Call Venice API with CORS proxy
+      const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+      const targetUrl = 'https://api.venice.ai/api/v1/image/generate';
+      const response = await fetch(proxyUrl + targetUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${API_KEY}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
         },
         body: JSON.stringify(payload)
       });
@@ -589,12 +596,15 @@ class VeniceImageGenerator {
         temperature: 0.7
       };
       
-      // Call Venice API for prompt optimization
-      const response = await fetch('https://api.venice.ai/api/v1/chat/completions', {
+      // Call Venice API for prompt optimization with CORS proxy
+      const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+      const targetUrl = 'https://api.venice.ai/api/v1/chat/completions';
+      const response = await fetch(proxyUrl + targetUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${API_KEY}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
         },
         body: JSON.stringify(chatPayload)
       });
@@ -913,11 +923,15 @@ class VeniceImageGenerator {
     console.log(`Payload for ${model.name}:`, payload);
     
     try {
-      const response = await fetch('https://api.venice.ai/api/v1/image/generate', {
+      // Use CORS proxy for deployed sites
+      const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+      const targetUrl = 'https://api.venice.ai/api/v1/image/generate';
+      const response = await fetch(proxyUrl + targetUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${API_KEY}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
         },
         body: JSON.stringify(payload)
       });
