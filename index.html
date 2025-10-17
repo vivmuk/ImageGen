@@ -29,8 +29,11 @@
             <button id="generator-tab" class="tab-button active px-4 py-2 mr-2 focus:outline-none">
               <i class="fas fa-image mr-2"></i>Generator
             </button>
-            <button id="optimizer-tab" class="tab-button px-4 py-2 focus:outline-none">
-              <i class="fas fa-magic mr-2"></i>Prompt Optimizer
+            <button id="optimizer-tab" class="tab-button px-4 py-2 mr-2 focus:outline-none">
+              <i class="fas fa-magic mr-2"></i>Optimizer
+            </button>
+            <button id="comparison-tab" class="tab-button px-4 py-2 focus:outline-none">
+              <i class="fas fa-balance-scale mr-2"></i>Compare
             </button>
           </div>
           
@@ -164,6 +167,58 @@
               </div>
             </div>
           </div>
+          
+          <!-- Model Comparison Panel -->
+          <div id="comparison-panel" class="tab-panel hidden">
+            <div class="space-y-4">
+              <div>
+                <label class="input-label" for="comparison-prompt">
+                  <i class="fas fa-lightbulb text-neon-pink mr-2"></i>Comparison Prompt
+                </label>
+                <textarea id="comparison-prompt" placeholder="Enter a prompt to test across all models..." rows="3" class="input-textarea"></textarea>
+              </div>
+              
+              <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label class="input-label" for="comparison-style">
+                    <i class="fas fa-palette text-neon-pink mr-2"></i>Style
+                  </label>
+                  <select id="comparison-style" class="select-input">
+                    <!-- Options will be populated by JavaScript -->
+                  </select>
+                </div>
+                
+                <div>
+                  <label class="input-label" for="comparison-steps">
+                    <i class="fas fa-cog text-neon-pink mr-2"></i>Steps
+                  </label>
+                  <select id="comparison-steps" class="select-input">
+                    <option value="20">20 (Fast)</option>
+                    <option value="25" selected>25 (Balanced)</option>
+                    <option value="30">30 (Quality)</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div class="flex justify-center">
+                <button id="compare-models-button" class="action-button">
+                  <i class="fas fa-balance-scale mr-2"></i>Compare All Models
+                </button>
+              </div>
+              
+              <div id="comparison-progress" class="hidden">
+                <div class="bg-darker-bg border border-neon-pink rounded-md p-4">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-light font-medium">Generating images...</span>
+                    <span id="comparison-progress-text" class="text-neon-pink font-bold">0/0</span>
+                  </div>
+                  <div class="w-full bg-dark-bg rounded-full h-2">
+                    <div id="comparison-progress-bar" class="bg-gradient-to-r from-neon-pink to-neon-blue h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -228,6 +283,16 @@
           <i class="fas fa-image text-neon-pink text-5xl mb-4"></i>
           <p class="text-light text-center">Your generated image will appear here</p>
           <p class="text-medium text-sm text-center mt-2">Choose your settings and click "Generate Image"</p>
+        </div>
+        
+        <!-- Model Comparison Results -->
+        <div id="comparison-results" class="hidden">
+          <h2 class="text-xl font-bold mb-4 text-light flex items-center">
+            <i class="fas fa-balance-scale text-neon-pink mr-2"></i>Model Comparison
+          </h2>
+          <div id="comparison-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Comparison images will be added here -->
+          </div>
         </div>
       </div>
     </div>

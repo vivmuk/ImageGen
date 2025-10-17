@@ -141,6 +141,14 @@ class VeniceImageGenerator {
       ).join('');
     }
     
+    // Populate comparison style dropdown
+    const comparisonStyleSelect = document.getElementById('comparison-style');
+    if (comparisonStyleSelect) {
+      comparisonStyleSelect.innerHTML = STYLE_PRESETS.map(style => 
+        `<option value="${style}">${style}</option>`
+      ).join('');
+    }
+    
     // Setup aspect ratio and resolution handlers
     this.setupResolutionHandlers();
   }
@@ -186,23 +194,58 @@ class VeniceImageGenerator {
   setupTabs() {
     const generatorTab = document.getElementById('generator-tab');
     const optimizerTab = document.getElementById('optimizer-tab');
+    const comparisonTab = document.getElementById('comparison-tab');
     const generatorPanel = document.getElementById('generator-panel');
     const optimizerPanel = document.getElementById('optimizer-panel');
+    const comparisonPanel = document.getElementById('comparison-panel');
     
-    if (generatorTab && optimizerTab && generatorPanel && optimizerPanel) {
+    if (generatorTab && optimizerTab && comparisonTab && generatorPanel && optimizerPanel && comparisonPanel) {
       generatorTab.addEventListener('click', () => {
-        generatorTab.classList.add('active');
-        optimizerTab.classList.remove('active');
-        generatorPanel.classList.remove('hidden');
-        optimizerPanel.classList.add('hidden');
+        this.switchTab('generator');
       });
       
       optimizerTab.addEventListener('click', () => {
-        optimizerTab.classList.add('active');
-        generatorTab.classList.remove('active');
-        optimizerPanel.classList.remove('hidden');
-        generatorPanel.classList.add('hidden');
+        this.switchTab('optimizer');
       });
+      
+      comparisonTab.addEventListener('click', () => {
+        this.switchTab('comparison');
+      });
+    }
+  }
+  
+  switchTab(activeTab) {
+    const generatorTab = document.getElementById('generator-tab');
+    const optimizerTab = document.getElementById('optimizer-tab');
+    const comparisonTab = document.getElementById('comparison-tab');
+    const generatorPanel = document.getElementById('generator-panel');
+    const optimizerPanel = document.getElementById('optimizer-panel');
+    const comparisonPanel = document.getElementById('comparison-panel');
+    
+    // Remove active class from all tabs
+    generatorTab.classList.remove('active');
+    optimizerTab.classList.remove('active');
+    comparisonTab.classList.remove('active');
+    
+    // Hide all panels
+    generatorPanel.classList.add('hidden');
+    optimizerPanel.classList.add('hidden');
+    comparisonPanel.classList.add('hidden');
+    
+    // Show active tab and panel
+    switch(activeTab) {
+      case 'generator':
+        generatorTab.classList.add('active');
+        generatorPanel.classList.remove('hidden');
+        break;
+      case 'optimizer':
+        optimizerTab.classList.add('active');
+        optimizerPanel.classList.remove('hidden');
+        break;
+      case 'comparison':
+        comparisonTab.classList.add('active');
+        comparisonPanel.classList.remove('hidden');
+        break;
     }
   }
 
@@ -212,6 +255,7 @@ class VeniceImageGenerator {
     const saveGalleryButton = document.getElementById('save-gallery-button');
     const optimizeButton = document.getElementById('optimize-button');
     const useOptimizedPromptButton = document.getElementById('use-optimized-prompt');
+    const compareModelsButton = document.getElementById('compare-models-button');
     
     if (form) {
       form.addEventListener('submit', this.handleGenerateImage.bind(this));
@@ -231,6 +275,10 @@ class VeniceImageGenerator {
     
     if (useOptimizedPromptButton) {
       useOptimizedPromptButton.addEventListener('click', this.handleUseOptimizedPrompt.bind(this));
+    }
+    
+    if (compareModelsButton) {
+      compareModelsButton.addEventListener('click', this.handleCompareModels.bind(this));
     }
   }
 
@@ -687,6 +735,246 @@ class VeniceImageGenerator {
       
       galleryContainer.appendChild(galleryItem);
     });
+  }
+  
+  async handleCompareModels(event) {
+    event.preventDefault();
+    
+    const prompt = document.getElementById('comparison-prompt')?.value;
+    const style = document.getElementById('comparison-style')?.value;
+    const steps = parseInt(document.getElementById('comparison-steps')?.value) || 25;
+    
+    if (!prompt) {
+      alert('Please enter a prompt to compare across models.');
+      return;
+    }
+    
+    // Show progress and hide other results
+    this.showComparisonProgress();
+    this.hideOtherResults();
+    
+    try {
+      // Generate images for all models simultaneously
+      const promises = MODELS.map(model => this.generateImageForModel(model, prompt, style, steps));
+      const results = await Promise.allSettled(promises);
+      
+      // Process results
+      const comparisonResults = [];
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value) {
+          comparisonResults.push({
+            model: MODELS[index],
+            image: result.value,
+            success: true
+          });
+        } else {
+          comparisonResults.push({
+            model: MODELS[index],
+            error: result.reason || 'Failed to generate image',
+            success: false
+          });
+        }
+      });
+      
+      // Display comparison results
+      this.displayComparisonResults(comparisonResults);
+      
+    } catch (error) {
+      console.error('Error in model comparison:', error);
+      alert('Error comparing models. Please try again.');
+    } finally {
+      this.hideComparisonProgress();
+    }
+  }
+  
+  async generateImageForModel(model, prompt, style, steps) {
+    const width = 1024;
+    const height = 576;
+    
+    // Adjust dimensions based on model constraints
+    const widthHeightDivisor = model.constraints?.widthHeightDivisor || 8;
+    const adjustedWidth = Math.round(width / widthHeightDivisor) * widthHeightDivisor;
+    const adjustedHeight = Math.round(height / widthHeightDivisor) * widthHeightDivisor;
+    
+    // Adjust steps based on model constraints
+    let adjustedSteps = steps;
+    if (model.constraints?.steps) {
+      const maxSteps = model.constraints.steps.max || 50;
+      adjustedSteps = Math.min(steps, maxSteps);
+    }
+    
+    const payload = {
+      model: model.id,
+      prompt: prompt,
+      height: adjustedHeight,
+      width: adjustedWidth,
+      steps: adjustedSteps,
+      return_binary: false,
+      hide_watermark: true
+    };
+    
+    // Add style if not "None"
+    if (style && style !== "None") {
+      payload.style_preset = style;
+    }
+    
+    const response = await fetch('https://api.venice.ai/api/v1/image/generate', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(result.error?.message || result.error || 'Failed to generate image');
+    }
+    
+    // Extract image data
+    let imageData = null;
+    if (result.images && Array.isArray(result.images) && result.images.length > 0) {
+      imageData = result.images[0];
+    } else if (result.image) {
+      imageData = result.image;
+    }
+    
+    if (!imageData) {
+      throw new Error('No image data received');
+    }
+    
+    return {
+      src: `data:image/png;base64,${imageData}`,
+      model: model.name,
+      prompt: prompt,
+      style: style || 'None',
+      width: adjustedWidth,
+      height: adjustedHeight,
+      steps: adjustedSteps
+    };
+  }
+  
+  showComparisonProgress() {
+    const progressContainer = document.getElementById('comparison-progress');
+    const progressText = document.getElementById('comparison-progress-text');
+    const progressBar = document.getElementById('comparison-progress-bar');
+    
+    if (progressContainer) {
+      progressContainer.classList.remove('hidden');
+    }
+    
+    if (progressText) {
+      progressText.textContent = `0/${MODELS.length}`;
+    }
+    
+    if (progressBar) {
+      progressBar.style.width = '0%';
+    }
+    
+    // Update progress as models complete
+    this.comparisonProgress = 0;
+    this.totalModels = MODELS.length;
+  }
+  
+  hideComparisonProgress() {
+    const progressContainer = document.getElementById('comparison-progress');
+    if (progressContainer) {
+      progressContainer.classList.add('hidden');
+    }
+  }
+  
+  updateComparisonProgress() {
+    this.comparisonProgress++;
+    const progressText = document.getElementById('comparison-progress-text');
+    const progressBar = document.getElementById('comparison-progress-bar');
+    
+    if (progressText) {
+      progressText.textContent = `${this.comparisonProgress}/${this.totalModels}`;
+    }
+    
+    if (progressBar) {
+      const percentage = (this.comparisonProgress / this.totalModels) * 100;
+      progressBar.style.width = `${percentage}%`;
+    }
+  }
+  
+  displayComparisonResults(results) {
+    const comparisonResults = document.getElementById('comparison-results');
+    const comparisonGrid = document.getElementById('comparison-grid');
+    
+    if (!comparisonResults || !comparisonGrid) return;
+    
+    // Clear previous results
+    comparisonGrid.innerHTML = '';
+    
+    // Show comparison results
+    comparisonResults.classList.remove('hidden');
+    
+    // Add each result to the grid
+    results.forEach((result, index) => {
+      const gridItem = document.createElement('div');
+      gridItem.className = 'bg-darker-bg border border-neon-pink rounded-lg overflow-hidden';
+      
+      if (result.success) {
+        gridItem.innerHTML = `
+          <div class="aspect-video">
+            <img src="${result.image.src}" alt="${result.model.name}" class="w-full h-full object-cover">
+          </div>
+          <div class="p-3">
+            <h3 class="font-bold text-light mb-2">${result.model.name}</h3>
+            <div class="flex flex-wrap gap-1 mb-2">
+              <span class="text-xs bg-neon-blue text-white px-2 py-1 rounded-full">${result.image.width}×${result.image.height}</span>
+              <span class="text-xs bg-neon-pink text-white px-2 py-1 rounded-full">${result.image.steps} steps</span>
+              <span class="text-xs bg-neon-green text-white px-2 py-1 rounded-full">${result.image.style}</span>
+            </div>
+            <button onclick="downloadComparisonImage('${result.image.src}', '${result.model.name}')" 
+                    class="w-full bg-neon-pink text-white py-1 px-2 rounded text-sm hover:bg-opacity-80 transition-all">
+              <i class="fas fa-download mr-1"></i>Download
+            </button>
+          </div>
+        `;
+      } else {
+        gridItem.innerHTML = `
+          <div class="aspect-video bg-darker-bg flex items-center justify-center">
+            <div class="text-center text-medium">
+              <i class="fas fa-exclamation-triangle text-neon-pink text-2xl mb-2"></i>
+              <p class="text-sm">Failed to generate</p>
+            </div>
+          </div>
+          <div class="p-3">
+            <h3 class="font-bold text-light mb-2">${result.model.name}</h3>
+            <p class="text-xs text-medium">${result.error}</p>
+          </div>
+        `;
+      }
+      
+      comparisonGrid.appendChild(gridItem);
+    });
+  }
+  
+  hideOtherResults() {
+    const result = document.getElementById('result');
+    const placeholder = document.getElementById('placeholder');
+    
+    if (result) result.classList.add('hidden');
+    if (placeholder) placeholder.classList.add('hidden');
+  }
+  
+}
+
+// Global function for downloading comparison images
+function downloadComparisonImage(src, modelName) {
+  try {
+    const link = document.createElement('a');
+    link.href = src;
+    link.download = `comparison-${modelName.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (error) {
+    console.error('Error downloading image:', error);
   }
 }
 
