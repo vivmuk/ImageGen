@@ -21,9 +21,11 @@
       <p class="text-center text-medium mt-2">Create stunning AI-generated images with custom styles</p>
     </header>
     
-    <div id="app" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <!-- Left column: Controls -->
-      <div class="control-panel">
+    <div id="app">
+      <!-- Main content area -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <!-- Left column: Controls -->
+        <div class="control-panel">
         <div class="form-container mb-4">
           <div class="tabs flex border-b border-neon-pink border-opacity-30 mb-4">
             <button id="generator-tab" class="tab-button active px-4 py-2 mr-2 focus:outline-none">
@@ -200,6 +202,21 @@
                 </div>
               </div>
               
+              <!-- Age Verification -->
+              <div class="bg-darker-bg border border-neon-pink rounded-md p-4 mb-4">
+                <div class="flex items-start space-x-3">
+                  <input type="checkbox" id="age-verification" class="mt-1 h-4 w-4 text-neon-pink bg-darker-bg border-neon-pink rounded focus:ring-neon-pink focus:ring-2">
+                  <div>
+                    <label for="age-verification" class="text-sm text-light font-medium">
+                      <i class="fas fa-shield-alt text-neon-pink mr-2"></i>I am 18+ years old and want to disable content filtering
+                    </label>
+                    <p class="text-xs text-medium mt-1">
+                      This allows generation of adult content. Leave unchecked for safe mode.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
               <div class="flex justify-center">
                 <button id="compare-models-button" class="action-button">
                   <i class="fas fa-balance-scale mr-2"></i>Compare All Models
@@ -285,15 +302,16 @@
           <p class="text-medium text-sm text-center mt-2">Choose your settings and click "Generate Image"</p>
         </div>
         
-        <!-- Model Comparison Results -->
-        <div id="comparison-results" class="hidden">
-          <h2 class="text-2xl font-bold mb-6 text-light flex items-center justify-center">
-            <i class="fas fa-balance-scale text-neon-pink mr-3"></i>Model Comparison
-          </h2>
-          <div id="comparison-grid">
-            <!-- Comparison images will be added here -->
-          </div>
-        </div>
+      </div>
+    </div>
+    
+    <!-- Model Comparison Results - Full Width -->
+    <div id="comparison-results" class="hidden mt-12">
+      <h2 class="text-3xl font-bold mb-8 text-light flex items-center justify-center">
+        <i class="fas fa-balance-scale text-neon-pink mr-3"></i>Model Comparison
+      </h2>
+      <div id="comparison-grid">
+        <!-- Comparison images will be added here -->
       </div>
     </div>
     

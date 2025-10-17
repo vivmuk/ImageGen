@@ -743,10 +743,27 @@ class VeniceImageGenerator {
     const prompt = document.getElementById('comparison-prompt')?.value;
     const style = document.getElementById('comparison-style')?.value;
     const steps = parseInt(document.getElementById('comparison-steps')?.value) || 25;
+    const ageVerification = document.getElementById('age-verification')?.checked;
     
     if (!prompt) {
       alert('Please enter a prompt to compare across models.');
       return;
+    }
+    
+    // Check if prompt contains adult content and age verification is not checked
+    const adultKeywords = ['sexy', 'nude', 'nsfw', 'adult', 'naked', 'explicit', 'porn', 'xxx'];
+    const hasAdultContent = adultKeywords.some(keyword => 
+      prompt.toLowerCase().includes(keyword)
+    );
+    
+    if (hasAdultContent && !ageVerification) {
+      const confirmAdult = confirm(
+        'Your prompt may contain adult content. You must be 18+ to generate such content.\n\n' +
+        'Please check the age verification box if you are 18+ and want to proceed.'
+      );
+      if (!confirmAdult) {
+        return;
+      }
     }
     
     // Show progress and hide other results
@@ -761,7 +778,7 @@ class VeniceImageGenerator {
       
       // Generate images for all models with individual progress tracking
       const promises = MODELS.map((model, index) => 
-        this.generateImageForModelWithProgress(model, prompt, style, steps, index)
+        this.generateImageForModelWithProgress(model, prompt, style, steps, index, ageVerification)
       );
       
       const results = await Promise.allSettled(promises);
@@ -797,11 +814,11 @@ class VeniceImageGenerator {
     }
   }
   
-  async generateImageForModelWithProgress(model, prompt, style, steps, index) {
+  async generateImageForModelWithProgress(model, prompt, style, steps, index, ageVerification = false) {
     const startTime = Date.now();
     
     try {
-      const result = await this.generateImageForModel(model, prompt, style, steps);
+      const result = await this.generateImageForModel(model, prompt, style, steps, ageVerification);
       
       // Track completion time
       const endTime = Date.now();
@@ -843,7 +860,7 @@ class VeniceImageGenerator {
     }
   }
   
-  async generateImageForModel(model, prompt, style, steps) {
+  async generateImageForModel(model, prompt, style, steps, ageVerification = false) {
     const width = 1024;
     const height = 576;
     
@@ -870,12 +887,27 @@ class VeniceImageGenerator {
       width: adjustedWidth,
       steps: adjustedSteps,
       return_binary: false,
-      hide_watermark: true
+      hide_watermark: false, // Changed to false as per API docs
+      safe_mode: !ageVerification, // Use age verification to control safe mode
+      format: "webp", // Use webp format for better quality
+      cfg_scale: 7.5, // Add CFG scale for better prompt adherence
+      seed: Math.floor(Math.random() * 1000000000), // Add random seed for variety
+      embed_exif_metadata: false, // Don't embed metadata
+      variants: 1 // Generate single variant
     };
     
     // Add style if not "None"
     if (style && style !== "None") {
       payload.style_preset = style;
+    }
+    
+    // Add negative prompt for better control based on age verification
+    if (!ageVerification) {
+      // Safe mode - add negative prompts to avoid adult content
+      payload.negative_prompt = "nude, naked, sexual, explicit, adult content, nsfw, inappropriate";
+    } else {
+      // Adult mode - add negative prompts to improve quality
+      payload.negative_prompt = "blurred, censored, pixelated, low quality, distorted, bad anatomy";
     }
     
     console.log(`Payload for ${model.name}:`, payload);
@@ -892,6 +924,11 @@ class VeniceImageGenerator {
       
       const result = await response.json();
       console.log(`Response for ${model.name}:`, result);
+      
+      // Check if there are any safety/content filter warnings in the response
+      if (result.warnings || result.safety_warnings || result.content_filter) {
+        console.warn(`Safety warnings for ${model.name}:`, result.warnings || result.safety_warnings || result.content_filter);
+      }
       
       if (!response.ok) {
         const errorMsg = result.error?.message || result.error || result.message || `HTTP ${response.status}`;
@@ -921,7 +958,8 @@ class VeniceImageGenerator {
         style: style || 'None',
         width: adjustedWidth,
         height: adjustedHeight,
-        steps: adjustedSteps
+        steps: adjustedSteps,
+        safeMode: !ageVerification
       };
     } catch (error) {
       console.error(`Error generating image for ${model.name}:`, error);
@@ -944,6 +982,7 @@ class VeniceImageGenerator {
     
     if (progressBar) {
       progressBar.style.width = '0%';
+      progressBar.style.transition = 'width 0.3s ease';
     }
     
     // Update progress as models complete
@@ -1011,8 +1050,18 @@ class VeniceImageGenerator {
     }
     
     if (progressBar) {
-      const percentage = (this.comparisonProgress / this.totalModels) * 100;
-      progressBar.style.width = `${percentage}%`;
+      const percentage = Math.min((this.comparisonProgress / this.totalModels) * 100, 100);
+      console.log(`Updating progress bar: ${this.comparisonProgress}/${this.totalModels} = ${percentage}%`);
+      
+      // Use requestAnimationFrame to ensure smooth updates
+      requestAnimationFrame(() => {
+        progressBar.style.width = `${percentage}%`;
+        progressBar.setAttribute('aria-valuenow', percentage);
+        progressBar.setAttribute('aria-valuemin', 0);
+        progressBar.setAttribute('aria-valuemax', 100);
+      });
+    } else {
+      console.error('Progress bar element not found!');
     }
   }
   
@@ -1035,6 +1084,9 @@ class VeniceImageGenerator {
       
       if (result.success) {
         const generationTime = result.generationTime ? `${result.generationTime.toFixed(1)}s` : 'N/A';
+        const safeMode = result.image.safeMode ? 'Safe Mode' : 'Adult Mode';
+        const safeModeColor = result.image.safeMode ? 'var(--neon-green)' : 'var(--neon-pink)';
+        
         gridItem.innerHTML = `
           <div class="comparison-image-container">
             <img src="${result.image.src}" alt="${result.model.name}" class="comparison-image">
@@ -1046,6 +1098,7 @@ class VeniceImageGenerator {
               <span class="comparison-badge" style="background: var(--neon-pink); color: white;">${result.image.steps} steps</span>
               <span class="comparison-badge" style="background: var(--neon-green); color: white;">${result.image.style}</span>
               <span class="comparison-badge" style="background: var(--neon-purple); color: white;">${generationTime}</span>
+              <span class="comparison-badge" style="background: ${safeModeColor}; color: white;">${safeMode}</span>
             </div>
             <button onclick="downloadComparisonImage('${result.image.src}', '${result.model.name}')" 
                     class="comparison-download-btn">

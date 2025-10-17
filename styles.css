@@ -164,7 +164,8 @@ body {
   box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
   border-top: 3px solid var(--neon-purple);
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  max-height: 80vh;
 }
 
 .results-panel::after {
@@ -460,15 +461,17 @@ footer p {
 #comparison-results {
   text-align: center;
   margin: 2rem 0;
+  width: 100%;
 }
 
 #comparison-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
-  max-width: 1400px;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 2rem;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0 2rem;
+  justify-items: center;
 }
 
 .comparison-card {
@@ -576,12 +579,19 @@ footer p {
   max-width: 200px;
 }
 
+/* Progress bar specific styles */
+#comparison-progress-bar {
+  transition: width 0.3s ease !important;
+  min-width: 0% !important;
+  max-width: 100% !important;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   #comparison-grid {
     grid-template-columns: 1fr;
-    gap: 1rem;
-    padding: 0 0.5rem;
+    gap: 1.5rem;
+    padding: 0 1rem;
   }
   
   .comparison-image-container {
@@ -591,7 +601,13 @@ footer p {
 
 @media (min-width: 1200px) {
   #comparison-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (min-width: 1600px) {
+  #comparison-grid {
+    grid-template-columns: repeat(5, 1fr);
   }
 }
 
