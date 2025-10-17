@@ -754,8 +754,16 @@ class VeniceImageGenerator {
     this.hideOtherResults();
     
     try {
-      // Generate images for all models simultaneously
-      const promises = MODELS.map(model => this.generateImageForModel(model, prompt, style, steps));
+      // Initialize progress tracking
+      this.comparisonProgress = 0;
+      this.totalModels = MODELS.length;
+      this.completedModels = [];
+      
+      // Generate images for all models with individual progress tracking
+      const promises = MODELS.map((model, index) => 
+        this.generateImageForModelWithProgress(model, prompt, style, steps, index)
+      );
+      
       const results = await Promise.allSettled(promises);
       
       // Process results
@@ -765,13 +773,15 @@ class VeniceImageGenerator {
           comparisonResults.push({
             model: MODELS[index],
             image: result.value,
-            success: true
+            success: true,
+            generationTime: this.completedModels[index]?.time || 0
           });
         } else {
           comparisonResults.push({
             model: MODELS[index],
             error: result.reason || 'Failed to generate image',
-            success: false
+            success: false,
+            generationTime: this.completedModels[index]?.time || 0
           });
         }
       });
@@ -787,9 +797,57 @@ class VeniceImageGenerator {
     }
   }
   
+  async generateImageForModelWithProgress(model, prompt, style, steps, index) {
+    const startTime = Date.now();
+    
+    try {
+      const result = await this.generateImageForModel(model, prompt, style, steps);
+      
+      // Track completion time
+      const endTime = Date.now();
+      const generationTime = (endTime - startTime) / 1000; // Convert to seconds
+      
+      this.completedModels[index] = {
+        model: model.name,
+        time: generationTime,
+        success: true
+      };
+      
+      // Update model status to completed
+      this.updateModelStatus(model.id, 'completed');
+      
+      // Update progress
+      this.comparisonProgress++;
+      this.updateComparisonProgress();
+      
+      return result;
+    } catch (error) {
+      // Track completion time even for failures
+      const endTime = Date.now();
+      const generationTime = (endTime - startTime) / 1000;
+      
+      this.completedModels[index] = {
+        model: model.name,
+        time: generationTime,
+        success: false
+      };
+      
+      // Update model status to failed
+      this.updateModelStatus(model.id, 'failed');
+      
+      // Update progress
+      this.comparisonProgress++;
+      this.updateComparisonProgress();
+      
+      throw error;
+    }
+  }
+  
   async generateImageForModel(model, prompt, style, steps) {
     const width = 1024;
     const height = 576;
+    
+    console.log(`Generating image for model: ${model.name} (${model.id})`);
     
     // Adjust dimensions based on model constraints
     const widthHeightDivisor = model.constraints?.widthHeightDivisor || 8;
@@ -802,6 +860,8 @@ class VeniceImageGenerator {
       const maxSteps = model.constraints.steps.max || 50;
       adjustedSteps = Math.min(steps, maxSteps);
     }
+    
+    console.log(`Model ${model.name} - Adjusted dimensions: ${adjustedWidth}x${adjustedHeight}, steps: ${adjustedSteps}`);
     
     const payload = {
       model: model.id,
@@ -818,42 +878,55 @@ class VeniceImageGenerator {
       payload.style_preset = style;
     }
     
-    const response = await fetch('https://api.venice.ai/api/v1/image/generate', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+    console.log(`Payload for ${model.name}:`, payload);
     
-    const result = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(result.error?.message || result.error || 'Failed to generate image');
+    try {
+      const response = await fetch('https://api.venice.ai/api/v1/image/generate', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      const result = await response.json();
+      console.log(`Response for ${model.name}:`, result);
+      
+      if (!response.ok) {
+        const errorMsg = result.error?.message || result.error || result.message || `HTTP ${response.status}`;
+        console.error(`Model ${model.name} failed:`, errorMsg);
+        throw new Error(`${errorMsg} (Status: ${response.status})`);
+      }
+      
+      // Extract image data
+      let imageData = null;
+      if (result.images && Array.isArray(result.images) && result.images.length > 0) {
+        imageData = result.images[0];
+      } else if (result.image) {
+        imageData = result.image;
+      }
+      
+      if (!imageData) {
+        console.error(`No image data for ${model.name}:`, result);
+        throw new Error('No image data received from API');
+      }
+      
+      console.log(`Successfully generated image for ${model.name}`);
+      
+      return {
+        src: `data:image/png;base64,${imageData}`,
+        model: model.name,
+        prompt: prompt,
+        style: style || 'None',
+        width: adjustedWidth,
+        height: adjustedHeight,
+        steps: adjustedSteps
+      };
+    } catch (error) {
+      console.error(`Error generating image for ${model.name}:`, error);
+      throw error;
     }
-    
-    // Extract image data
-    let imageData = null;
-    if (result.images && Array.isArray(result.images) && result.images.length > 0) {
-      imageData = result.images[0];
-    } else if (result.image) {
-      imageData = result.image;
-    }
-    
-    if (!imageData) {
-      throw new Error('No image data received');
-    }
-    
-    return {
-      src: `data:image/png;base64,${imageData}`,
-      model: model.name,
-      prompt: prompt,
-      style: style || 'None',
-      width: adjustedWidth,
-      height: adjustedHeight,
-      steps: adjustedSteps
-    };
   }
   
   showComparisonProgress() {
@@ -876,17 +949,60 @@ class VeniceImageGenerator {
     // Update progress as models complete
     this.comparisonProgress = 0;
     this.totalModels = MODELS.length;
+    this.completedModels = [];
+    
+    // Add detailed progress info
+    this.addDetailedProgressInfo();
+  }
+  
+  addDetailedProgressInfo() {
+    const progressContainer = document.getElementById('comparison-progress');
+    if (!progressContainer) return;
+    
+    // Create detailed progress info
+    const detailedInfo = document.createElement('div');
+    detailedInfo.id = 'detailed-progress-info';
+    detailedInfo.className = 'mt-3 text-sm text-medium';
+    detailedInfo.innerHTML = `
+      <div class="flex flex-wrap gap-2 justify-center">
+        ${MODELS.map(model => `
+          <span id="model-status-${model.id}" class="px-2 py-1 rounded-full bg-darker-bg border border-neon-pink text-xs">
+            <i class="fas fa-clock mr-1"></i>${model.name}
+          </span>
+        `).join('')}
+      </div>
+    `;
+    
+    progressContainer.appendChild(detailedInfo);
+  }
+  
+  updateModelStatus(modelId, status) {
+    const statusElement = document.getElementById(`model-status-${modelId}`);
+    if (!statusElement) return;
+    
+    const icon = status === 'completed' ? 'fa-check' : 
+                 status === 'failed' ? 'fa-times' : 'fa-clock';
+    const color = status === 'completed' ? 'neon-green' : 
+                  status === 'failed' ? 'neon-pink' : 'neon-blue';
+    
+    statusElement.innerHTML = `<i class="fas ${icon} mr-1"></i>${MODELS.find(m => m.id === modelId)?.name}`;
+    statusElement.className = `px-2 py-1 rounded-full bg-darker-bg border border-${color} text-xs`;
   }
   
   hideComparisonProgress() {
     const progressContainer = document.getElementById('comparison-progress');
+    const detailedInfo = document.getElementById('detailed-progress-info');
+    
     if (progressContainer) {
       progressContainer.classList.add('hidden');
+    }
+    
+    if (detailedInfo) {
+      detailedInfo.remove();
     }
   }
   
   updateComparisonProgress() {
-    this.comparisonProgress++;
     const progressText = document.getElementById('comparison-progress-text');
     const progressBar = document.getElementById('comparison-progress-bar');
     
@@ -915,36 +1031,40 @@ class VeniceImageGenerator {
     // Add each result to the grid
     results.forEach((result, index) => {
       const gridItem = document.createElement('div');
-      gridItem.className = 'bg-darker-bg border border-neon-pink rounded-lg overflow-hidden';
+      gridItem.className = 'comparison-card';
       
       if (result.success) {
+        const generationTime = result.generationTime ? `${result.generationTime.toFixed(1)}s` : 'N/A';
         gridItem.innerHTML = `
-          <div class="aspect-video">
-            <img src="${result.image.src}" alt="${result.model.name}" class="w-full h-full object-cover">
+          <div class="comparison-image-container">
+            <img src="${result.image.src}" alt="${result.model.name}" class="comparison-image">
           </div>
-          <div class="p-3">
-            <h3 class="font-bold text-light mb-2">${result.model.name}</h3>
-            <div class="flex flex-wrap gap-1 mb-2">
-              <span class="text-xs bg-neon-blue text-white px-2 py-1 rounded-full">${result.image.width}×${result.image.height}</span>
-              <span class="text-xs bg-neon-pink text-white px-2 py-1 rounded-full">${result.image.steps} steps</span>
-              <span class="text-xs bg-neon-green text-white px-2 py-1 rounded-full">${result.image.style}</span>
+          <div class="comparison-card-content">
+            <h3 class="comparison-model-name">${result.model.name}</h3>
+            <div class="comparison-metadata">
+              <span class="comparison-badge" style="background: var(--neon-blue); color: white;">${result.image.width}×${result.image.height}</span>
+              <span class="comparison-badge" style="background: var(--neon-pink); color: white;">${result.image.steps} steps</span>
+              <span class="comparison-badge" style="background: var(--neon-green); color: white;">${result.image.style}</span>
+              <span class="comparison-badge" style="background: var(--neon-purple); color: white;">${generationTime}</span>
             </div>
             <button onclick="downloadComparisonImage('${result.image.src}', '${result.model.name}')" 
-                    class="w-full bg-neon-pink text-white py-1 px-2 rounded text-sm hover:bg-opacity-80 transition-all">
-              <i class="fas fa-download mr-1"></i>Download
+                    class="comparison-download-btn">
+              <i class="fas fa-download mr-2"></i>Download
             </button>
           </div>
         `;
       } else {
+        const generationTime = result.generationTime ? `${result.generationTime.toFixed(1)}s` : 'N/A';
         gridItem.innerHTML = `
-          <div class="aspect-video bg-darker-bg flex items-center justify-center">
-            <div class="text-center text-medium">
-              <i class="fas fa-exclamation-triangle text-neon-pink text-2xl mb-2"></i>
-              <p class="text-sm">Failed to generate</p>
-            </div>
+          <div class="comparison-error">
+            <i class="fas fa-exclamation-triangle comparison-error-icon"></i>
+            <p class="comparison-error-text">Failed to generate</p>
           </div>
-          <div class="p-3">
-            <h3 class="font-bold text-light mb-2">${result.model.name}</h3>
+          <div class="comparison-card-content">
+            <h3 class="comparison-model-name">${result.model.name}</h3>
+            <div class="comparison-metadata">
+              <span class="comparison-badge" style="background: var(--neon-purple); color: white;">${generationTime}</span>
+            </div>
             <p class="text-xs text-medium">${result.error}</p>
           </div>
         `;
