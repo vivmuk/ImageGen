@@ -1089,7 +1089,8 @@ class VeniceImageGenerator {
         
         gridItem.innerHTML = `
           <div class="comparison-image-container">
-            <img src="${result.image.src}" alt="${result.model.name}" class="comparison-image">
+            <img src="${result.image.src}" alt="${result.model.name}" class="comparison-image" 
+                 onclick="openImageModal('${result.image.src}', '${result.model.name}', '${result.image.width}', '${result.image.height}', '${result.image.steps}', '${result.image.style}', '${generationTime}', '${safeMode}')">
           </div>
           <div class="comparison-card-content">
             <h3 class="comparison-model-name">${result.model.name}</h3>
@@ -1151,7 +1152,73 @@ function downloadComparisonImage(src, modelName) {
   }
 }
 
+// Global function for opening image modal
+function openImageModal(src, modelName, width, height, steps, style, generationTime, safeMode) {
+  const modal = document.getElementById('image-modal');
+  const modalImage = document.getElementById('modal-image');
+  const modalTitle = document.getElementById('modal-title');
+  const modalMetadata = document.getElementById('modal-metadata');
+  const modalDownload = document.getElementById('modal-download');
+  
+  if (!modal || !modalImage || !modalTitle || !modalMetadata || !modalDownload) return;
+  
+  // Set image
+  modalImage.src = src;
+  
+  // Set title
+  modalTitle.textContent = modelName;
+  
+  // Set metadata
+  modalMetadata.innerHTML = `
+    <span class="comparison-badge" style="background: var(--neon-blue); color: white;">${width}×${height}</span>
+    <span class="comparison-badge" style="background: var(--neon-pink); color: white;">${steps} steps</span>
+    <span class="comparison-badge" style="background: var(--neon-green); color: white;">${style}</span>
+    <span class="comparison-badge" style="background: var(--neon-purple); color: white;">${generationTime}</span>
+    <span class="comparison-badge" style="background: ${safeMode === 'Safe Mode' ? 'var(--neon-green)' : 'var(--neon-pink)'}; color: white;">${safeMode}</span>
+  `;
+  
+  // Set download handler
+  modalDownload.onclick = () => downloadComparisonImage(src, modelName);
+  
+  // Show modal
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden'; // Prevent background scrolling
+}
+
+// Close modal function
+function closeImageModal() {
+  const modal = document.getElementById('image-modal');
+  if (modal) {
+    modal.classList.add('hidden');
+    document.body.style.overflow = ''; // Restore scrolling
+  }
+}
+
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
   new VeniceImageGenerator();
+  
+  // Add modal event listeners
+  const modal = document.getElementById('image-modal');
+  const closeButton = document.getElementById('close-modal');
+  
+  if (closeButton) {
+    closeButton.addEventListener('click', closeImageModal);
+  }
+  
+  if (modal) {
+    // Close modal when clicking outside the image
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal || e.target.classList.contains('modal-overlay')) {
+        closeImageModal();
+      }
+    });
+    
+    // Close modal with Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+        closeImageModal();
+      }
+    });
+  }
 }); 

@@ -333,6 +333,27 @@
     </footer>
   </div>
   
+  <!-- Full-screen Image Modal -->
+  <div id="image-modal" class="modal hidden">
+    <div class="modal-overlay">
+      <div class="modal-content">
+        <button id="close-modal" class="modal-close">
+          <i class="fas fa-times"></i>
+        </button>
+        <div class="modal-image-container">
+          <img id="modal-image" src="" alt="Full size preview" class="modal-image">
+        </div>
+        <div class="modal-info">
+          <h3 id="modal-title" class="modal-title"></h3>
+          <div id="modal-metadata" class="modal-metadata"></div>
+          <button id="modal-download" class="modal-download-btn">
+            <i class="fas fa-download mr-2"></i>Download
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
   <script src="app.js"></script>
 </body>
 </html> 
