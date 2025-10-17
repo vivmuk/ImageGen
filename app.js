@@ -10,8 +10,8 @@ let MODELS = [];
 async function fetchModels() {
   try {
     // Use CORS proxy to avoid CORS issues on deployed sites
-    const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-    const targetUrl = 'https://api.venice.ai/api/v1/models?type=image';
+    const proxyUrl = 'https://api.allorigins.win/raw?url=';
+    const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/models?type=image');
     const response = await fetch(proxyUrl + targetUrl, {
       method: 'GET',
       headers: {
@@ -435,8 +435,8 @@ class VeniceImageGenerator {
       console.log('Sending request with payload:', payload);
       
       // Call Venice API with CORS proxy
-      const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-      const targetUrl = 'https://api.venice.ai/api/v1/image/generate';
+      const proxyUrl = 'https://api.allorigins.win/raw?url=';
+      const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/image/generate');
       const response = await fetch(proxyUrl + targetUrl, {
         method: 'POST',
         headers: {
@@ -597,8 +597,8 @@ class VeniceImageGenerator {
       };
       
       // Call Venice API for prompt optimization with CORS proxy
-      const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-      const targetUrl = 'https://api.venice.ai/api/v1/chat/completions';
+      const proxyUrl = 'https://api.allorigins.win/raw?url=';
+      const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/chat/completions');
       const response = await fetch(proxyUrl + targetUrl, {
         method: 'POST',
         headers: {
@@ -924,8 +924,8 @@ class VeniceImageGenerator {
     
     try {
       // Use CORS proxy for deployed sites
-      const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-      const targetUrl = 'https://api.venice.ai/api/v1/image/generate';
+      const proxyUrl = 'https://api.allorigins.win/raw?url=';
+      const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/image/generate');
       const response = await fetch(proxyUrl + targetUrl, {
         method: 'POST',
         headers: {
