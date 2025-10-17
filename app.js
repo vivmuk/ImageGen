@@ -1218,6 +1218,9 @@ class VeniceImageGenerator {
     
     if (!comparisonResults || !comparisonGrid) return;
     
+    // Store results globally for modal navigation
+    allComparisonResults = results;
+    
     // Clear previous results
     comparisonGrid.innerHTML = '';
     
@@ -1299,6 +1302,10 @@ function downloadComparisonImage(src, modelName) {
   }
 }
 
+// Global variables for modal navigation
+let currentImageIndex = 0;
+let allComparisonResults = [];
+
 // Global function for opening image modal
 function openImageModal(src, modelName, width, height, steps, style, generationTime, safeMode) {
   const modal = document.getElementById('image-modal');
@@ -1327,9 +1334,69 @@ function openImageModal(src, modelName, width, height, steps, style, generationT
   // Set download handler
   modalDownload.onclick = () => downloadComparisonImage(src, modelName);
   
+  // Find current image index in comparison results
+  currentImageIndex = allComparisonResults.findIndex(result => 
+    result.image && result.image.src === src
+  );
+  
+  // Set up navigation
+  setupModalNavigation();
+  
   // Show modal
   modal.classList.remove('hidden');
   document.body.style.overflow = 'hidden'; // Prevent background scrolling
+}
+
+// Setup modal navigation
+function setupModalNavigation() {
+  const prevBtn = document.getElementById('modal-prev');
+  const nextBtn = document.getElementById('modal-next');
+  
+  if (!prevBtn || !nextBtn) return;
+  
+  // Update button states
+  prevBtn.disabled = currentImageIndex <= 0;
+  nextBtn.disabled = currentImageIndex >= allComparisonResults.length - 1;
+  
+  // Set up click handlers
+  prevBtn.onclick = () => navigateImage(-1);
+  nextBtn.onclick = () => navigateImage(1);
+}
+
+// Navigate to previous/next image
+function navigateImage(direction) {
+  const newIndex = currentImageIndex + direction;
+  
+  if (newIndex < 0 || newIndex >= allComparisonResults.length) return;
+  
+  currentImageIndex = newIndex;
+  const result = allComparisonResults[currentImageIndex];
+  
+  if (result && result.image) {
+    // Update modal with new image data
+    const modalImage = document.getElementById('modal-image');
+    const modalTitle = document.getElementById('modal-title');
+    const modalMetadata = document.getElementById('modal-metadata');
+    const modalDownload = document.getElementById('modal-download');
+    
+    if (modalImage) modalImage.src = result.image.src;
+    if (modalTitle) modalTitle.textContent = result.model.name;
+    if (modalMetadata) {
+      modalMetadata.innerHTML = `
+        <span class="comparison-badge" style="background: var(--neon-blue); color: white;">${result.image.width}×${result.image.height}</span>
+        <span class="comparison-badge" style="background: var(--neon-pink); color: white;">${result.image.steps} steps</span>
+        <span class="comparison-badge" style="background: var(--neon-green); color: white;">${result.image.style}</span>
+        <span class="comparison-badge" style="background: var(--neon-purple); color: white;">${result.generationTime}</span>
+        <span class="comparison-badge" style="background: ${result.safeMode === 'Safe Mode' ? 'var(--neon-green)' : 'var(--neon-pink)'}; color: white;">${result.safeMode}</span>
+      `;
+    }
+    if (modalDownload) {
+      modalDownload.onclick = () => downloadComparisonImage(result.image.src, result.model.name);
+    }
+    
+    // Update navigation button states
+    setupModalNavigation();
+  }
 }
 
 // Close modal function
@@ -1361,10 +1428,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
     
-    // Close modal with Escape key
+    // Close modal with Escape key and navigate with arrow keys
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
-        closeImageModal();
+      if (!modal.classList.contains('hidden')) {
+        if (e.key === 'Escape') {
+          closeImageModal();
+        } else if (e.key === 'ArrowLeft') {
+          navigateImage(-1);
+        } else if (e.key === 'ArrowRight') {
+          navigateImage(1);
+        }
       }
     });
   }
