@@ -1,33 +1,13 @@
 // Venice AI Image Generator Application
 
 // API Key (as provided)
-const API_KEY = "1HuCqCKmjn0F9cV3wh1STZkaTNlfxhTuqdIcdPQaem";
+const API_KEY = "Y4khTZkh2WEx4N93d9CS6vYxrfzvwAenIm4oV02R6O";
 
 // Model options from Venice AI (will be populated dynamically)
 let MODELS = [];
 
 // Fallback models when API fails
 const FALLBACK_MODELS = [
-  {
-    id: "flux-dev",
-    name: "FLUX Standard",
-    traits: ["highest_quality"],
-    constraints: {
-      promptCharacterLimit: 2048,
-      steps: { default: 25, max: 30 },
-      widthHeightDivisor: 8
-    }
-  },
-  {
-    id: "flux-dev-uncensored",
-    name: "FLUX Custom",
-    traits: [],
-    constraints: {
-      promptCharacterLimit: 2048,
-      steps: { default: 25, max: 30 },
-      widthHeightDivisor: 8
-    }
-  },
   {
     id: "venice-sd35",
     name: "Venice SD35",
@@ -36,16 +16,9 @@ const FALLBACK_MODELS = [
       promptCharacterLimit: 1500,
       steps: { default: 25, max: 30 },
       widthHeightDivisor: 16
-    }
-  },
-  {
-    id: "stable-diffusion-3.5",
-    name: "Stable Diffusion 3.5",
-    traits: [],
-    constraints: {
-      promptCharacterLimit: 1500,
-      steps: { default: 25, max: 30 },
-      widthHeightDivisor: 16
+    },
+    pricing: {
+      generation: { usd: 0.01 }
     }
   },
   {
@@ -56,16 +29,74 @@ const FALLBACK_MODELS = [
       promptCharacterLimit: 1500,
       steps: { default: 20, max: 50 },
       widthHeightDivisor: 8
+    },
+    pricing: {
+      generation: { usd: 0.01 }
     }
   },
   {
-    id: "fluently-xl",
-    name: "Fluently XL Final",
-    traits: ["fastest"],
+    id: "flux-2-pro",
+    name: "Flux 2 Pro",
+    traits: [],
+    constraints: {
+      promptCharacterLimit: 3000,
+      steps: { default: 20, max: 50 },
+      widthHeightDivisor: 1
+    },
+    pricing: {
+      generation: { usd: 0.04 }
+    }
+  },
+  {
+    id: "flux-2-max",
+    name: "Flux 2 Max",
+    traits: [],
+    constraints: {
+      promptCharacterLimit: 3000,
+      steps: { default: 20, max: 50 },
+      widthHeightDivisor: 1
+    },
+    pricing: {
+      generation: { usd: 0.09 }
+    }
+  },
+  {
+    id: "gpt-image-1-5",
+    name: "GPT Image 1.5",
+    traits: [],
+    constraints: {
+      promptCharacterLimit: 32768,
+      steps: { default: 20, max: 50 },
+      widthHeightDivisor: 1
+    },
+    pricing: {
+      generation: { usd: 0.23 }
+    }
+  },
+  {
+    id: "nano-banana-pro",
+    name: "Nano Banana Pro",
+    traits: [],
+    constraints: {
+      promptCharacterLimit: 32768,
+      steps: { default: 20, max: 50 },
+      widthHeightDivisor: 1
+    },
+    pricing: {
+      generation: { usd: 0.18 }
+    }
+  },
+  {
+    id: "seedream-v4",
+    name: "SeedreamV4.5",
+    traits: [],
     constraints: {
       promptCharacterLimit: 1500,
       steps: { default: 20, max: 50 },
-      widthHeightDivisor: 8
+      widthHeightDivisor: 1
+    },
+    pricing: {
+      generation: { usd: 0.05 }
     }
   },
   {
@@ -76,16 +107,61 @@ const FALLBACK_MODELS = [
       promptCharacterLimit: 1500,
       steps: { default: 20, max: 50 },
       widthHeightDivisor: 8
+    },
+    pricing: {
+      generation: { usd: 0.01 }
     }
   },
   {
-    id: "pony-realism",
-    name: "Pony Realism",
-    traits: ["most_uncensored"],
+    id: "lustify-v7",
+    name: "Lustify v7",
+    traits: [],
     constraints: {
       promptCharacterLimit: 1500,
       steps: { default: 20, max: 50 },
       widthHeightDivisor: 8
+    },
+    pricing: {
+      generation: { usd: 0.01 }
+    }
+  },
+  {
+    id: "qwen-image",
+    name: "Qwen Image",
+    traits: ["highest_quality"],
+    constraints: {
+      promptCharacterLimit: 1500,
+      steps: { default: 8, max: 8 },
+      widthHeightDivisor: 8
+    },
+    pricing: {
+      generation: { usd: 0.01 }
+    }
+  },
+  {
+    id: "wai-Illustrious",
+    name: "Anime (WAI)",
+    traits: [],
+    constraints: {
+      promptCharacterLimit: 1500,
+      steps: { default: 25, max: 30 },
+      widthHeightDivisor: 16
+    },
+    pricing: {
+      generation: { usd: 0.01 }
+    }
+  },
+  {
+    id: "z-image-turbo",
+    name: "Z-Image Turbo",
+    traits: [],
+    constraints: {
+      promptCharacterLimit: 7500,
+      steps: { default: 8, max: 8 },
+      widthHeightDivisor: 8
+    },
+    pricing: {
+      generation: { usd: 0.01 }
     }
   }
 ];
@@ -131,7 +207,8 @@ async function fetchModels() {
         id: model.id,
         name: model.model_spec?.name || model.id,
         traits: model.model_spec?.traits || [],
-        constraints: model.model_spec?.constraints || {}
+        constraints: model.model_spec?.constraints || {},
+        pricing: model.model_spec?.pricing || {}
       }));
 
     console.log('Fetched models:', MODELS);
@@ -1221,6 +1298,10 @@ class VeniceImageGenerator {
     // Store results globally for modal navigation
     allComparisonResults = results;
     
+    // Calculate total cost
+    let totalCost = 0;
+    let successfulGenerations = 0;
+    
     // Clear previous results
     comparisonGrid.innerHTML = '';
     
@@ -1237,10 +1318,20 @@ class VeniceImageGenerator {
         const safeMode = result.image.safeMode ? 'Safe Mode' : 'Adult Mode';
         const safeModeColor = result.image.safeMode ? 'var(--neon-green)' : 'var(--neon-pink)';
         
+        // Calculate cost based on model pricing and image dimensions
+        let cost = 0;
+        if (result.model.pricing && result.model.pricing.generation) {
+          cost = result.model.pricing.generation.usd || 0;
+        }
+        
+        // Add to total cost
+        totalCost += cost;
+        successfulGenerations++;
+        
         gridItem.innerHTML = `
           <div class="comparison-image-container">
-            <img src="${result.image.src}" alt="${result.model.name}" class="comparison-image" 
-                 onclick="openImageModal('${result.image.src}', '${result.model.name}', '${result.image.width}', '${result.image.height}', '${result.image.steps}', '${result.image.style}', '${generationTime}', '${safeMode}')">
+            <img src="${result.image.src}" alt="${result.model.name}" class="comparison-image"
+                 onclick="openImageModal('${result.image.src}', '${result.model.name}', '${result.image.width}', '${result.image.height}', '${result.image.steps}', '${result.image.style}', '${generationTime}', '${safeMode}', '${cost.toFixed(4)}')">
           </div>
           <div class="comparison-card-content">
             <h3 class="comparison-model-name">${result.model.name}</h3>
@@ -1251,7 +1342,8 @@ class VeniceImageGenerator {
               <span class="comparison-badge" style="background: var(--neon-purple); color: white;">${generationTime}</span>
               <span class="comparison-badge" style="background: ${safeModeColor}; color: white;">${safeMode}</span>
             </div>
-            <button onclick="downloadComparisonImage('${result.image.src}', '${result.model.name}')" 
+            <div class="comparison-cost">Cost: $${cost.toFixed(4)}</div>
+            <button onclick="downloadComparisonImage('${result.image.src}', '${result.model.name}')"
                     class="comparison-download-btn">
               <i class="fas fa-download mr-2"></i>Download
             </button>
@@ -1259,6 +1351,7 @@ class VeniceImageGenerator {
         `;
       } else {
         const generationTime = result.generationTime ? `${result.generationTime.toFixed(1)}s` : 'N/A';
+        // Show cost as $0.0000 for failed generations
         gridItem.innerHTML = `
           <div class="comparison-error">
             <i class="fas fa-exclamation-triangle comparison-error-icon"></i>
@@ -1269,6 +1362,7 @@ class VeniceImageGenerator {
             <div class="comparison-metadata">
               <span class="comparison-badge" style="background: var(--neon-purple); color: white;">${generationTime}</span>
             </div>
+            <div class="comparison-cost">Cost: $0.0000</div>
             <p class="text-xs text-medium">${result.error}</p>
           </div>
         `;
@@ -1276,6 +1370,34 @@ class VeniceImageGenerator {
       
       comparisonGrid.appendChild(gridItem);
     });
+    
+    // Add total cost summary at the top
+    const summaryDiv = document.createElement('div');
+    summaryDiv.className = 'comparison-summary';
+    summaryDiv.innerHTML = `
+      <div style="background: var(--dark-card); border: 2px solid var(--neon-green); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; text-align: center;">
+        <h3 style="color: var(--neon-green); margin-bottom: 1rem; font-size: 1.2rem;">
+          <i class="fas fa-coins mr-2"></i>Session Summary
+        </h3>
+        <div style="display: flex; justify-content: space-around; flex-wrap: wrap; gap: 1rem;">
+          <div style="text-align: center;">
+            <div style="font-size: 1.5rem; font-weight: bold; color: var(--neon-blue);">${successfulGenerations}/${results.length}</div>
+            <div style="font-size: 0.8rem; color: var(--medium-text);">Successful</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 1.5rem; font-weight: bold; color: var(--neon-pink);">$${totalCost.toFixed(4)}</div>
+            <div style="font-size: 0.8rem; color: var(--medium-text);">Total Cost</div>
+          </div>
+          <div style="text-align: center;">
+            <div style="font-size: 1.5rem; font-weight: bold; color: var(--neon-purple);">${((totalCost / successfulGenerations) || 0).toFixed(4)}</div>
+            <div style="font-size: 0.8rem; color: var(--medium-text);">Avg Cost/Image</div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Insert summary at the top of comparison results
+    comparisonGrid.parentNode.insertBefore(summaryDiv, comparisonGrid);
   }
   
   hideOtherResults() {
@@ -1307,7 +1429,7 @@ let currentImageIndex = 0;
 let allComparisonResults = [];
 
 // Global function for opening image modal
-function openImageModal(src, modelName, width, height, steps, style, generationTime, safeMode) {
+function openImageModal(src, modelName, width, height, steps, style, generationTime, safeMode, cost) {
   const modal = document.getElementById('image-modal');
   const modalImage = document.getElementById('modal-image');
   const modalTitle = document.getElementById('modal-title');
@@ -1329,6 +1451,7 @@ function openImageModal(src, modelName, width, height, steps, style, generationT
     <span class="comparison-badge" style="background: var(--neon-green); color: white;">${style}</span>
     <span class="comparison-badge" style="background: var(--neon-purple); color: white;">${generationTime}</span>
     <span class="comparison-badge" style="background: ${safeMode === 'Safe Mode' ? 'var(--neon-green)' : 'var(--neon-pink)'}; color: white;">${safeMode}</span>
+    <span class="comparison-badge" style="background: var(--neon-yellow); color: var(--dark-bg);">Cost: $${cost}</span>
   `;
   
   // Set download handler
@@ -1388,6 +1511,7 @@ function navigateImage(direction) {
         <span class="comparison-badge" style="background: var(--neon-green); color: white;">${result.image.style}</span>
         <span class="comparison-badge" style="background: var(--neon-purple); color: white;">${result.generationTime}</span>
         <span class="comparison-badge" style="background: ${result.safeMode === 'Safe Mode' ? 'var(--neon-green)' : 'var(--neon-pink)'}; color: white;">${result.safeMode}</span>
+        <span class="comparison-badge" style="background: var(--neon-yellow); color: var(--dark-bg);">Cost: $${result.cost || '0.0000'}</span>
       `;
     }
     if (modalDownload) {
