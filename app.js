@@ -396,30 +396,46 @@ class VeniceImageGenerator {
     const generatorPanel = document.getElementById('generator-panel');
     const optimizerPanel = document.getElementById('optimizer-panel');
     const comparisonPanel = document.getElementById('comparison-panel');
-    
+    const mainGrid = document.getElementById('main-grid');
+    const resultsPanel = document.querySelector('.results-panel');
+
     // Remove active class from all tabs
     generatorTab.classList.remove('active');
     optimizerTab.classList.remove('active');
     comparisonTab.classList.remove('active');
-    
+
     // Hide all panels
     generatorPanel.classList.add('hidden');
     optimizerPanel.classList.add('hidden');
     comparisonPanel.classList.add('hidden');
-    
+
     // Show active tab and panel
     switch(activeTab) {
       case 'generator':
         generatorTab.classList.add('active');
         generatorPanel.classList.remove('hidden');
+        // Show two-column layout
+        if (mainGrid) {
+          mainGrid.classList.remove('hidden');
+          mainGrid.classList.add('grid', 'grid-cols-1', 'lg:grid-cols-2', 'gap-8');
+        }
+        if (resultsPanel) resultsPanel.style.display = '';
         break;
       case 'optimizer':
         optimizerTab.classList.add('active');
         optimizerPanel.classList.remove('hidden');
+        // Show two-column layout
+        if (mainGrid) {
+          mainGrid.classList.remove('hidden');
+          mainGrid.classList.add('grid', 'grid-cols-1', 'lg:grid-cols-2', 'gap-8');
+        }
+        if (resultsPanel) resultsPanel.style.display = '';
         break;
       case 'comparison':
         comparisonTab.classList.add('active');
         comparisonPanel.classList.remove('hidden');
+        // Hide right panel for comparison - show full width
+        if (resultsPanel) resultsPanel.style.display = 'none';
         break;
     }
   }
@@ -976,42 +992,26 @@ class VeniceImageGenerator {
     // Show progress and hide other results
     this.showComparisonProgress();
     this.hideOtherResults();
-    
+
+    // Prepare comparison grid immediately
+    this.prepareComparisonGrid();
+
     try {
       // Initialize progress tracking
       this.comparisonProgress = 0;
       this.totalModels = MODELS.length;
       this.completedModels = [];
-      
+      this.allComparisonData = []; // Store data for statistics table
+
       // Generate images for all models with individual progress tracking
-      const promises = MODELS.map((model, index) => 
+      const promises = MODELS.map((model, index) =>
         this.generateImageForModelWithProgress(model, prompt, style, steps, index, ageVerification)
       );
-      
+
       const results = await Promise.allSettled(promises);
-      
-      // Process results
-      const comparisonResults = [];
-      results.forEach((result, index) => {
-        if (result.status === 'fulfilled' && result.value) {
-          comparisonResults.push({
-            model: MODELS[index],
-            image: result.value,
-            success: true,
-            generationTime: this.completedModels[index]?.time || 0
-          });
-        } else {
-          comparisonResults.push({
-            model: MODELS[index],
-            error: result.reason || 'Failed to generate image',
-            success: false,
-            generationTime: this.completedModels[index]?.time || 0
-          });
-        }
-      });
-      
-      // Display comparison results
-      this.displayComparisonResults(comparisonResults);
+
+      // After all complete, show statistics table
+      this.displayComparisonStatistics();
       
     } catch (error) {
       console.error('Error in model comparison:', error);
@@ -1023,46 +1023,52 @@ class VeniceImageGenerator {
   
   async generateImageForModelWithProgress(model, prompt, style, steps, index, ageVerification = false) {
     const startTime = Date.now();
-    
+
     try {
       const result = await this.generateImageForModel(model, prompt, style, steps, ageVerification);
-      
+
       // Track completion time
       const endTime = Date.now();
       const generationTime = (endTime - startTime) / 1000; // Convert to seconds
-      
+
       this.completedModels[index] = {
         model: model.name,
         time: generationTime,
         success: true
       };
-      
+
       // Update model status to completed
       this.updateModelStatus(model.id, 'completed');
-      
+
       // Update progress
       this.comparisonProgress++;
       this.updateComparisonProgress();
-      
+
+      // IMMEDIATELY display this image as it's completed
+      this.addComparisonCard(model, result, generationTime, true);
+
       return result;
     } catch (error) {
       // Track completion time even for failures
       const endTime = Date.now();
       const generationTime = (endTime - startTime) / 1000;
-      
+
       this.completedModels[index] = {
         model: model.name,
         time: generationTime,
         success: false
       };
-      
+
       // Update model status to failed
       this.updateModelStatus(model.id, 'failed');
-      
+
       // Update progress
       this.comparisonProgress++;
       this.updateComparisonProgress();
-      
+
+      // Show error card immediately
+      this.addComparisonCard(model, null, generationTime, false, error.message);
+
       throw error;
     }
   }
@@ -1087,6 +1093,10 @@ class VeniceImageGenerator {
     
     console.log(`Model ${model.name} - Adjusted dimensions: ${adjustedWidth}x${adjustedHeight}, steps: ${adjustedSteps}`);
     
+    // Enable web search for specific models that benefit from it
+    const webSearchModels = ['nano-banana-pro', 'gpt-image-1-5'];
+    const enableWebSearch = webSearchModels.includes(model.id);
+
     const payload = {
       model: model.id,
       prompt: prompt,
@@ -1096,12 +1106,18 @@ class VeniceImageGenerator {
       return_binary: false,
       hide_watermark: false, // Changed to false as per API docs
       safe_mode: !ageVerification, // Use age verification to control safe mode
-      format: "webp", // Use webp format for better quality
-      cfg_scale: 7.5, // Add CFG scale for better prompt adherence
-      seed: Math.floor(Math.random() * 1000000000), // Add random seed for variety
-      embed_exif_metadata: false, // Don't embed metadata
-      variants: 1 // Generate single variant
+      format: "webp", // Use webp format for better quality/compression
+      cfg_scale: 7.5, // CFG scale for better prompt adherence (0-20)
+      seed: Math.floor(Math.random() * 999999999), // Random seed for variety
+      embed_exif_metadata: false, // Don't embed generation metadata in EXIF
+      variants: 1, // Generate single variant (1-4)
+      lora_strength: 50, // Lora strength if model uses additional Loras (0-100)
+      enable_web_search: enableWebSearch // Enable web search for Nano Banana Pro and GPT Image 1.5
     };
+
+    if (enableWebSearch) {
+      console.log(`Web search enabled for ${model.name}`);
+    }
     
     // Add style if not "None"
     if (style && style !== "None") {
@@ -1403,11 +1419,230 @@ class VeniceImageGenerator {
   hideOtherResults() {
     const result = document.getElementById('result');
     const placeholder = document.getElementById('placeholder');
-    
+
     if (result) result.classList.add('hidden');
     if (placeholder) placeholder.classList.add('hidden');
   }
-  
+
+  // Prepare comparison grid - show it immediately
+  prepareComparisonGrid() {
+    const comparisonResults = document.getElementById('comparison-results');
+    const comparisonGrid = document.getElementById('comparison-grid');
+
+    if (!comparisonResults || !comparisonGrid) return;
+
+    // Clear previous results
+    comparisonGrid.innerHTML = '';
+
+    // Remove any existing summary
+    const existingSummary = document.querySelector('.comparison-summary');
+    if (existingSummary) existingSummary.remove();
+
+    const existingStatsTable = document.querySelector('.comparison-stats-table');
+    if (existingStatsTable) existingStatsTable.remove();
+
+    // Show comparison results container
+    comparisonResults.classList.remove('hidden');
+
+    // Initialize global array for modal
+    window.allComparisonResults = [];
+    this.allComparisonData = [];
+  }
+
+  // Add a single comparison card as soon as it's generated
+  addComparisonCard(model, imageResult, generationTime, success, errorMessage = '') {
+    const comparisonGrid = document.getElementById('comparison-grid');
+    if (!comparisonGrid) return;
+
+    const gridItem = document.createElement('div');
+    gridItem.className = 'comparison-card';
+    gridItem.setAttribute('data-model-id', model.id);
+
+    if (success && imageResult) {
+      const safeMode = imageResult.safeMode ? 'Safe Mode' : 'Adult Mode';
+      const safeModeColor = imageResult.safeMode ? 'var(--mcm-olive)' : 'var(--mcm-orange)';
+
+      // Calculate cost based on model pricing
+      let cost = 0;
+      if (model.pricing && model.pricing.generation) {
+        cost = model.pricing.generation.usd || 0;
+      }
+
+      // Store data for statistics table
+      this.allComparisonData.push({
+        model: model,
+        image: imageResult,
+        generationTime: generationTime,
+        cost: cost,
+        success: true
+      });
+
+      // Add to global array for modal
+      window.allComparisonResults.push({
+        model: model,
+        image: imageResult,
+        generationTime: generationTime,
+        success: true
+      });
+
+      gridItem.innerHTML = `
+        <div class="comparison-image-container">
+          <img src="${imageResult.src}" alt="${model.name}" class="comparison-image"
+               onclick="openImageModal('${imageResult.src}', '${model.name}', '${imageResult.width}', '${imageResult.height}', '${imageResult.steps}', '${imageResult.style}', '${generationTime.toFixed(1)}s', '${safeMode}', '${cost.toFixed(4)}')">
+        </div>
+        <div class="comparison-card-content">
+          <h3 class="comparison-model-name">${model.name}</h3>
+          <div class="comparison-metadata">
+            <span class="comparison-badge" style="background: var(--mcm-teal); color: white;">${imageResult.width}×${imageResult.height}</span>
+            <span class="comparison-badge" style="background: var(--mcm-orange); color: white;">${imageResult.steps} steps</span>
+            <span class="comparison-badge" style="background: var(--mcm-olive); color: white;">${imageResult.style}</span>
+            <span class="comparison-badge" style="background: var(--mcm-mustard); color: var(--text-primary);">${generationTime.toFixed(1)}s</span>
+            <span class="comparison-badge" style="background: ${safeModeColor}; color: white;">${safeMode}</span>
+          </div>
+          <div class="comparison-cost">Cost: $${cost.toFixed(4)}</div>
+          <button onclick="downloadComparisonImage('${imageResult.src}', '${model.name}')"
+                  class="comparison-download-btn">
+            <i class="fas fa-download mr-2"></i>Download
+          </button>
+        </div>
+      `;
+    } else {
+      // Store error data
+      this.allComparisonData.push({
+        model: model,
+        generationTime: generationTime,
+        cost: 0,
+        success: false,
+        error: errorMessage
+      });
+
+      gridItem.innerHTML = `
+        <div class="comparison-error">
+          <i class="fas fa-exclamation-triangle comparison-error-icon"></i>
+          <p class="comparison-error-text">Failed to generate</p>
+        </div>
+        <div class="comparison-card-content">
+          <h3 class="comparison-model-name">${model.name}</h3>
+          <div class="comparison-metadata">
+            <span class="comparison-badge" style="background: var(--mcm-warm-gray); color: white;">${generationTime.toFixed(1)}s</span>
+          </div>
+          <div class="comparison-cost">Cost: $0.0000</div>
+          <p class="text-xs text-medium mt-2">${errorMessage}</p>
+        </div>
+      `;
+    }
+
+    comparisonGrid.appendChild(gridItem);
+  }
+
+  // Display statistics table after all images are generated
+  displayComparisonStatistics() {
+    const comparisonResults = document.getElementById('comparison-results');
+    if (!comparisonResults) return;
+
+    // Calculate statistics
+    const successfulGens = this.allComparisonData.filter(d => d.success);
+    const failedGens = this.allComparisonData.filter(d => !d.success);
+    const totalCost = successfulGens.reduce((sum, d) => sum + d.cost, 0);
+    const avgCost = successfulGens.length > 0 ? totalCost / successfulGens.length : 0;
+    const avgTime = successfulGens.length > 0 ?
+      successfulGens.reduce((sum, d) => sum + d.generationTime, 0) / successfulGens.length : 0;
+    const fastestTime = successfulGens.length > 0 ?
+      Math.min(...successfulGens.map(d => d.generationTime)) : 0;
+    const slowestTime = successfulGens.length > 0 ?
+      Math.max(...successfulGens.map(d => d.generationTime)) : 0;
+
+    // Create statistics table
+    const statsTable = document.createElement('div');
+    statsTable.className = 'comparison-stats-table';
+    statsTable.style.cssText = 'background: var(--bg-card); border-radius: 4px; padding: 2rem; margin: 2rem auto; max-width: 1200px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);';
+
+    statsTable.innerHTML = `
+      <h3 style="font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 1.5rem; text-align: center; text-transform: uppercase; letter-spacing: 0.5px;">
+        <i class="fas fa-chart-bar" style="color: var(--mcm-teal); margin-right: 0.5rem;"></i>
+        Generation Statistics
+      </h3>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+        <div style="text-align: center; padding: 1rem; background: var(--bg-secondary); border-radius: 4px;">
+          <div style="font-size: 2rem; font-weight: 700; color: var(--mcm-teal);">${successfulGens.length}</div>
+          <div style="font-size: 0.875rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 0.5rem;">Successful</div>
+        </div>
+        <div style="text-align: center; padding: 1rem; background: var(--bg-secondary); border-radius: 4px;">
+          <div style="font-size: 2rem; font-weight: 700; color: var(--mcm-orange);">${failedGens.length}</div>
+          <div style="font-size: 0.875rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 0.5rem;">Failed</div>
+        </div>
+        <div style="text-align: center; padding: 1rem; background: var(--bg-secondary); border-radius: 4px;">
+          <div style="font-size: 2rem; font-weight: 700; color: var(--mcm-olive);">$${totalCost.toFixed(4)}</div>
+          <div style="font-size: 0.875rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 0.5rem;">Total Cost</div>
+        </div>
+        <div style="text-align: center; padding: 1rem; background: var(--bg-secondary); border-radius: 4px;">
+          <div style="font-size: 2rem; font-weight: 700; color: var(--mcm-mustard);">$${avgCost.toFixed(4)}</div>
+          <div style="font-size: 0.875rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 0.5rem;">Avg Cost</div>
+        </div>
+      </div>
+
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; background: var(--bg-card);">
+          <thead>
+            <tr style="background: var(--bg-secondary); border-bottom: 2px solid var(--mcm-teal);">
+              <th style="padding: 1rem; text-align: left; font-weight: 700; color: var(--text-primary); text-transform: uppercase; font-size: 0.875rem; letter-spacing: 0.5px;">Model</th>
+              <th style="padding: 1rem; text-align: center; font-weight: 700; color: var(--text-primary); text-transform: uppercase; font-size: 0.875rem; letter-spacing: 0.5px;">Status</th>
+              <th style="padding: 1rem; text-align: center; font-weight: 700; color: var(--text-primary); text-transform: uppercase; font-size: 0.875rem; letter-spacing: 0.5px;">Time</th>
+              <th style="padding: 1rem; text-align: center; font-weight: 700; color: var(--text-primary); text-transform: uppercase; font-size: 0.875rem; letter-spacing: 0.5px;">Resolution</th>
+              <th style="padding: 1rem; text-align: center; font-weight: 700; color: var(--text-primary); text-transform: uppercase; font-size: 0.875rem; letter-spacing: 0.5px;">Steps</th>
+              <th style="padding: 1rem; text-align: right; font-weight: 700; color: var(--text-primary); text-transform: uppercase; font-size: 0.875rem; letter-spacing: 0.5px;">Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${this.allComparisonData.map((data, index) => {
+              const statusBadge = data.success ?
+                '<span style="background: var(--mcm-olive); color: white; padding: 0.25rem 0.75rem; border-radius: 2px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Success</span>' :
+                '<span style="background: var(--mcm-orange); color: white; padding: 0.25rem 0.75rem; border-radius: 2px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Failed</span>';
+
+              const resolution = data.success ? `${data.image.width}×${data.image.height}` : '-';
+              const steps = data.success ? data.image.steps : '-';
+
+              return `
+                <tr style="border-bottom: 1px solid var(--mcm-light-gray); ${index % 2 === 0 ? '' : 'background: var(--bg-secondary);'}">
+                  <td style="padding: 1rem; font-weight: 600; color: var(--text-primary);">${data.model.name}</td>
+                  <td style="padding: 1rem; text-align: center;">${statusBadge}</td>
+                  <td style="padding: 1rem; text-align: center; color: var(--text-secondary); font-weight: 500;">${data.generationTime.toFixed(2)}s</td>
+                  <td style="padding: 1rem; text-align: center; color: var(--text-secondary); font-weight: 500;">${resolution}</td>
+                  <td style="padding: 1rem; text-align: center; color: var(--text-secondary); font-weight: 500;">${steps}</td>
+                  <td style="padding: 1rem; text-align: right; color: var(--mcm-olive); font-weight: 700;">$${data.cost.toFixed(4)}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: 4px; border-left: 4px solid var(--mcm-teal);">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; font-size: 0.875rem;">
+          <div>
+            <span style="color: var(--text-secondary); font-weight: 600;">Fastest:</span>
+            <span style="color: var(--mcm-teal); font-weight: 700; margin-left: 0.5rem;">${fastestTime.toFixed(2)}s</span>
+          </div>
+          <div>
+            <span style="color: var(--text-secondary); font-weight: 600;">Slowest:</span>
+            <span style="color: var(--mcm-orange); font-weight: 700; margin-left: 0.5rem;">${slowestTime.toFixed(2)}s</span>
+          </div>
+          <div>
+            <span style="color: var(--text-secondary); font-weight: 600;">Average:</span>
+            <span style="color: var(--mcm-olive); font-weight: 700; margin-left: 0.5rem;">${avgTime.toFixed(2)}s</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Insert before the grid
+    const comparisonGrid = document.getElementById('comparison-grid');
+    if (comparisonGrid && comparisonGrid.parentNode) {
+      comparisonGrid.parentNode.insertBefore(statsTable, comparisonGrid);
+    }
+  }
+
 }
 
 // Global function for downloading comparison images
