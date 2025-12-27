@@ -82,6 +82,16 @@ body::after {
   font-family: 'Inter', sans-serif;
 }
 
+/* Control panel - wider on comparison tab */
+.control-panel {
+  width: 100%;
+}
+
+#comparison-panel .form-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
 /* App title - clean and bold */
 .app-title {
   color: var(--text-primary);
@@ -619,17 +629,21 @@ footer p {
   width: 100%;
   height: 100%;
   z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: none;
 }
 
 .modal.hidden {
   display: none;
 }
 
+.modal:not(.hidden) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .modal-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   width: 100%;
@@ -648,6 +662,7 @@ footer p {
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
+  z-index: 1001;
 }
 
 .modal-close {

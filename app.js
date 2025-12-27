@@ -1313,6 +1313,7 @@ class VeniceImageGenerator {
     
     // Store results globally for modal navigation
     allComparisonResults = results;
+    window.allComparisonResults = results;
     
     // Calculate total cost
     let totalCost = 0;
@@ -1482,6 +1483,7 @@ class VeniceImageGenerator {
         model: model,
         image: imageResult,
         generationTime: generationTime,
+        cost: cost,
         success: true
       });
 
@@ -1681,25 +1683,31 @@ function openImageModal(src, modelName, width, height, steps, style, generationT
   
   // Set metadata
   modalMetadata.innerHTML = `
-    <span class="comparison-badge" style="background: var(--neon-blue); color: white;">${width}×${height}</span>
-    <span class="comparison-badge" style="background: var(--neon-pink); color: white;">${steps} steps</span>
-    <span class="comparison-badge" style="background: var(--neon-green); color: white;">${style}</span>
-    <span class="comparison-badge" style="background: var(--neon-purple); color: white;">${generationTime}</span>
-    <span class="comparison-badge" style="background: ${safeMode === 'Safe Mode' ? 'var(--neon-green)' : 'var(--neon-pink)'}; color: white;">${safeMode}</span>
-    <span class="comparison-badge" style="background: var(--neon-yellow); color: var(--dark-bg);">Cost: $${cost}</span>
+    <span class="comparison-badge" style="background: var(--mcm-teal); color: white;">${width}×${height}</span>
+    <span class="comparison-badge" style="background: var(--mcm-orange); color: white;">${steps} steps</span>
+    <span class="comparison-badge" style="background: var(--mcm-olive); color: white;">${style}</span>
+    <span class="comparison-badge" style="background: var(--mcm-mustard); color: var(--text-primary);">${generationTime}</span>
+    <span class="comparison-badge" style="background: ${safeMode === 'Safe Mode' ? 'var(--mcm-olive)' : 'var(--mcm-orange)'}; color: white;">${safeMode}</span>
+    <span class="comparison-badge" style="background: var(--mcm-olive); color: white;">Cost: $${cost}</span>
   `;
   
   // Set download handler
   modalDownload.onclick = () => downloadComparisonImage(src, modelName);
-  
+
   // Find current image index in comparison results
-  currentImageIndex = allComparisonResults.findIndex(result => 
-    result.image && result.image.src === src
-  );
-  
+  // Use window.allComparisonResults to ensure we're using the global array
+  if (window.allComparisonResults && window.allComparisonResults.length > 0) {
+    currentImageIndex = window.allComparisonResults.findIndex(result =>
+      result.image && result.image.src === src
+    );
+    allComparisonResults = window.allComparisonResults;
+  } else {
+    currentImageIndex = 0;
+  }
+
   // Set up navigation
   setupModalNavigation();
-  
+
   // Show modal
   modal.classList.remove('hidden');
   document.body.style.overflow = 'hidden'; // Prevent background scrolling
@@ -1709,13 +1717,22 @@ function openImageModal(src, modelName, width, height, steps, style, generationT
 function setupModalNavigation() {
   const prevBtn = document.getElementById('modal-prev');
   const nextBtn = document.getElementById('modal-next');
-  
-  if (!prevBtn || !nextBtn) return;
-  
+
+  if (!prevBtn || !nextBtn) {
+    console.log('Navigation buttons not found');
+    return;
+  }
+
+  console.log('Setting up modal navigation:', {
+    currentIndex: currentImageIndex,
+    totalImages: allComparisonResults.length,
+    allComparisonResults: allComparisonResults
+  });
+
   // Update button states
   prevBtn.disabled = currentImageIndex <= 0;
   nextBtn.disabled = currentImageIndex >= allComparisonResults.length - 1;
-  
+
   // Set up click handlers
   prevBtn.onclick = () => navigateImage(-1);
   nextBtn.onclick = () => navigateImage(1);
@@ -1723,36 +1740,47 @@ function setupModalNavigation() {
 
 // Navigate to previous/next image
 function navigateImage(direction) {
+  console.log('Navigate called:', { direction, currentIndex: currentImageIndex, totalImages: allComparisonResults.length });
+
   const newIndex = currentImageIndex + direction;
-  
-  if (newIndex < 0 || newIndex >= allComparisonResults.length) return;
-  
+
+  if (newIndex < 0 || newIndex >= allComparisonResults.length) {
+    console.log('Navigation blocked - out of bounds');
+    return;
+  }
+
   currentImageIndex = newIndex;
   const result = allComparisonResults[currentImageIndex];
-  
+
+  console.log('Navigating to image:', { newIndex, result });
+
   if (result && result.image) {
     // Update modal with new image data
     const modalImage = document.getElementById('modal-image');
     const modalTitle = document.getElementById('modal-title');
     const modalMetadata = document.getElementById('modal-metadata');
     const modalDownload = document.getElementById('modal-download');
-    
+
     if (modalImage) modalImage.src = result.image.src;
     if (modalTitle) modalTitle.textContent = result.model.name;
     if (modalMetadata) {
+      const safeMode = result.image.safeMode ? 'Safe Mode' : 'Adult Mode';
+      const cost = result.cost || '0.0000';
+      const generationTime = result.generationTime ? `${result.generationTime.toFixed(1)}s` : 'N/A';
+
       modalMetadata.innerHTML = `
-        <span class="comparison-badge" style="background: var(--neon-blue); color: white;">${result.image.width}×${result.image.height}</span>
-        <span class="comparison-badge" style="background: var(--neon-pink); color: white;">${result.image.steps} steps</span>
-        <span class="comparison-badge" style="background: var(--neon-green); color: white;">${result.image.style}</span>
-        <span class="comparison-badge" style="background: var(--neon-purple); color: white;">${result.generationTime}</span>
-        <span class="comparison-badge" style="background: ${result.safeMode === 'Safe Mode' ? 'var(--neon-green)' : 'var(--neon-pink)'}; color: white;">${result.safeMode}</span>
-        <span class="comparison-badge" style="background: var(--neon-yellow); color: var(--dark-bg);">Cost: $${result.cost || '0.0000'}</span>
+        <span class="comparison-badge" style="background: var(--mcm-teal); color: white;">${result.image.width}×${result.image.height}</span>
+        <span class="comparison-badge" style="background: var(--mcm-orange); color: white;">${result.image.steps} steps</span>
+        <span class="comparison-badge" style="background: var(--mcm-olive); color: white;">${result.image.style}</span>
+        <span class="comparison-badge" style="background: var(--mcm-mustard); color: var(--text-primary);">${generationTime}</span>
+        <span class="comparison-badge" style="background: ${safeMode === 'Safe Mode' ? 'var(--mcm-olive)' : 'var(--mcm-orange)'}; color: white;">${safeMode}</span>
+        <span class="comparison-badge" style="background: var(--mcm-olive); color: white;">Cost: $${cost}</span>
       `;
     }
     if (modalDownload) {
       modalDownload.onclick = () => downloadComparisonImage(result.image.src, result.model.name);
     }
-    
+
     // Update navigation button states
     setupModalNavigation();
   }
