@@ -303,29 +303,122 @@ class VeniceImageGenerator {
     // Populate model dropdown
     const modelSelect = document.getElementById('model');
     if (modelSelect) {
-      modelSelect.innerHTML = MODELS.map(model => 
+      modelSelect.innerHTML = MODELS.map(model =>
         `<option value="${model.id}" ${model.id === "flux-dev" ? "selected" : ""}>${model.name}</option>`
       ).join('');
+
+      // Add change listener for model capabilities
+      modelSelect.addEventListener('change', () => {
+        this.updateModelCapabilities(modelSelect.value);
+      });
+
+      // Show initial model capabilities
+      setTimeout(() => this.updateModelCapabilities(modelSelect.value), 100);
     }
-    
+
     // Populate style dropdown
     const styleSelect = document.getElementById('style');
     if (styleSelect) {
-      styleSelect.innerHTML = STYLE_PRESETS.map(style => 
+      styleSelect.innerHTML = STYLE_PRESETS.map(style =>
         `<option value="${style}">${style}</option>`
       ).join('');
     }
-    
+
     // Populate comparison style dropdown
     const comparisonStyleSelect = document.getElementById('comparison-style');
     if (comparisonStyleSelect) {
-      comparisonStyleSelect.innerHTML = STYLE_PRESETS.map(style => 
+      comparisonStyleSelect.innerHTML = STYLE_PRESETS.map(style =>
         `<option value="${style}">${style}</option>`
       ).join('');
     }
-    
+
+    // Populate web search style dropdown
+    const websearchStyleSelect = document.getElementById('websearch-style');
+    if (websearchStyleSelect) {
+      websearchStyleSelect.innerHTML = STYLE_PRESETS.map(style =>
+        `<option value="${style}">${style}</option>`
+      ).join('');
+    }
+
     // Setup aspect ratio and resolution handlers
     this.setupResolutionHandlers();
+
+    // Setup advanced settings
+    this.setupAdvancedSettings();
+  }
+
+  updateModelCapabilities(modelId) {
+    const model = MODELS.find(m => m.id === modelId);
+    const capabilitiesDiv = document.getElementById('model-capabilities');
+
+    if (!model || !capabilitiesDiv) return;
+
+    // Show the capabilities section
+    capabilitiesDiv.classList.remove('hidden');
+
+    // Update values
+    document.getElementById('capabilities-model-name').textContent = model.name;
+    document.getElementById('cap-prompt-limit').textContent =
+      model.constraints?.promptCharacterLimit ? `${model.constraints.promptCharacterLimit} chars` : 'N/A';
+    document.getElementById('cap-max-steps').textContent =
+      model.constraints?.steps?.max || 'N/A';
+    document.getElementById('cap-divisor').textContent =
+      model.constraints?.widthHeightDivisor || 'N/A';
+    document.getElementById('cap-cost').textContent =
+      model.pricing?.generation?.usd ? `$${model.pricing.generation.usd.toFixed(4)}` : 'N/A';
+
+    // Update traits
+    const traitsContainer = document.getElementById('cap-traits');
+    const traitsList = document.getElementById('cap-traits-list');
+
+    if (model.traits && model.traits.length > 0) {
+      traitsContainer.classList.remove('hidden');
+      traitsList.innerHTML = model.traits.map(trait =>
+        `<span class="trait-badge">${trait}</span>`
+      ).join('');
+    } else {
+      traitsContainer.classList.add('hidden');
+    }
+  }
+
+  setupAdvancedSettings() {
+    // Toggle advanced settings
+    const toggleBtn = document.getElementById('toggle-advanced');
+    const advancedSettings = document.getElementById('advanced-settings');
+
+    if (toggleBtn && advancedSettings) {
+      toggleBtn.addEventListener('click', () => {
+        toggleBtn.classList.toggle('active');
+        advancedSettings.classList.toggle('hidden');
+      });
+    }
+
+    // CFG Scale slider
+    const cfgSlider = document.getElementById('cfg-scale');
+    const cfgValue = document.getElementById('cfg-scale-value');
+    if (cfgSlider && cfgValue) {
+      cfgSlider.addEventListener('input', () => {
+        cfgValue.textContent = cfgSlider.value;
+      });
+    }
+
+    // LoRA Strength slider
+    const loraSlider = document.getElementById('lora-strength');
+    const loraValue = document.getElementById('lora-strength-value');
+    if (loraSlider && loraValue) {
+      loraSlider.addEventListener('input', () => {
+        loraValue.textContent = loraSlider.value;
+      });
+    }
+
+    // Random seed button
+    const randomSeedBtn = document.getElementById('random-seed');
+    const seedInput = document.getElementById('seed-input');
+    if (randomSeedBtn && seedInput) {
+      randomSeedBtn.addEventListener('click', () => {
+        seedInput.value = Math.floor(Math.random() * 999999999);
+      });
+    }
   }
   
   setupResolutionHandlers() {
@@ -369,20 +462,32 @@ class VeniceImageGenerator {
   setupTabs() {
     const generatorTab = document.getElementById('generator-tab');
     const optimizerTab = document.getElementById('optimizer-tab');
+    const websearchTab = document.getElementById('websearch-tab');
     const comparisonTab = document.getElementById('comparison-tab');
     const generatorPanel = document.getElementById('generator-panel');
     const optimizerPanel = document.getElementById('optimizer-panel');
+    const websearchPanel = document.getElementById('websearch-panel');
     const comparisonPanel = document.getElementById('comparison-panel');
-    
-    if (generatorTab && optimizerTab && comparisonTab && generatorPanel && optimizerPanel && comparisonPanel) {
+
+    if (generatorTab) {
       generatorTab.addEventListener('click', () => {
         this.switchTab('generator');
       });
-      
+    }
+
+    if (optimizerTab) {
       optimizerTab.addEventListener('click', () => {
         this.switchTab('optimizer');
       });
-      
+    }
+
+    if (websearchTab) {
+      websearchTab.addEventListener('click', () => {
+        this.switchTab('websearch');
+      });
+    }
+
+    if (comparisonTab) {
       comparisonTab.addEventListener('click', () => {
         this.switchTab('comparison');
       });
@@ -392,22 +497,26 @@ class VeniceImageGenerator {
   switchTab(activeTab) {
     const generatorTab = document.getElementById('generator-tab');
     const optimizerTab = document.getElementById('optimizer-tab');
+    const websearchTab = document.getElementById('websearch-tab');
     const comparisonTab = document.getElementById('comparison-tab');
     const generatorPanel = document.getElementById('generator-panel');
     const optimizerPanel = document.getElementById('optimizer-panel');
+    const websearchPanel = document.getElementById('websearch-panel');
     const comparisonPanel = document.getElementById('comparison-panel');
     const mainGrid = document.getElementById('main-grid');
     const resultsPanel = document.querySelector('.results-panel');
 
     // Remove active class from all tabs
-    generatorTab.classList.remove('active');
-    optimizerTab.classList.remove('active');
-    comparisonTab.classList.remove('active');
+    if (generatorTab) generatorTab.classList.remove('active');
+    if (optimizerTab) optimizerTab.classList.remove('active');
+    if (websearchTab) websearchTab.classList.remove('active');
+    if (comparisonTab) comparisonTab.classList.remove('active');
 
     // Hide all panels
-    generatorPanel.classList.add('hidden');
-    optimizerPanel.classList.add('hidden');
-    comparisonPanel.classList.add('hidden');
+    if (generatorPanel) generatorPanel.classList.add('hidden');
+    if (optimizerPanel) optimizerPanel.classList.add('hidden');
+    if (websearchPanel) websearchPanel.classList.add('hidden');
+    if (comparisonPanel) comparisonPanel.classList.add('hidden');
 
     // Remove comparison mode class by default
     document.body.classList.remove('comparison-mode');
@@ -415,8 +524,8 @@ class VeniceImageGenerator {
     // Show active tab and panel
     switch(activeTab) {
       case 'generator':
-        generatorTab.classList.add('active');
-        generatorPanel.classList.remove('hidden');
+        if (generatorTab) generatorTab.classList.add('active');
+        if (generatorPanel) generatorPanel.classList.remove('hidden');
         // Show two-column layout
         if (mainGrid) {
           mainGrid.classList.remove('hidden');
@@ -425,8 +534,18 @@ class VeniceImageGenerator {
         if (resultsPanel) resultsPanel.style.display = '';
         break;
       case 'optimizer':
-        optimizerTab.classList.add('active');
-        optimizerPanel.classList.remove('hidden');
+        if (optimizerTab) optimizerTab.classList.add('active');
+        if (optimizerPanel) optimizerPanel.classList.remove('hidden');
+        // Show two-column layout
+        if (mainGrid) {
+          mainGrid.classList.remove('hidden');
+          mainGrid.classList.add('grid', 'grid-cols-1', 'lg:grid-cols-2', 'gap-8');
+        }
+        if (resultsPanel) resultsPanel.style.display = '';
+        break;
+      case 'websearch':
+        if (websearchTab) websearchTab.classList.add('active');
+        if (websearchPanel) websearchPanel.classList.remove('hidden');
         // Show two-column layout
         if (mainGrid) {
           mainGrid.classList.remove('hidden');
@@ -435,8 +554,8 @@ class VeniceImageGenerator {
         if (resultsPanel) resultsPanel.style.display = '';
         break;
       case 'comparison':
-        comparisonTab.classList.add('active');
-        comparisonPanel.classList.remove('hidden');
+        if (comparisonTab) comparisonTab.classList.add('active');
+        if (comparisonPanel) comparisonPanel.classList.remove('hidden');
         // Add comparison mode class for full-width layout
         document.body.classList.add('comparison-mode');
         // Hide right panel for comparison - show full width
@@ -452,29 +571,34 @@ class VeniceImageGenerator {
     const optimizeButton = document.getElementById('optimize-button');
     const useOptimizedPromptButton = document.getElementById('use-optimized-prompt');
     const compareModelsButton = document.getElementById('compare-models-button');
-    
+    const websearchGenerateButton = document.getElementById('websearch-generate-button');
+
     if (form) {
       form.addEventListener('submit', this.handleGenerateImage.bind(this));
     }
-    
+
     if (downloadButton) {
       downloadButton.addEventListener('click', this.handleDownloadImage.bind(this));
     }
-    
+
     if (saveGalleryButton) {
       saveGalleryButton.addEventListener('click', this.handleSaveToGallery.bind(this));
     }
-    
+
     if (optimizeButton) {
       optimizeButton.addEventListener('click', this.handleOptimizePrompt.bind(this));
     }
-    
+
     if (useOptimizedPromptButton) {
       useOptimizedPromptButton.addEventListener('click', this.handleUseOptimizedPrompt.bind(this));
     }
-    
+
     if (compareModelsButton) {
       compareModelsButton.addEventListener('click', this.handleCompareModels.bind(this));
+    }
+
+    if (websearchGenerateButton) {
+      websearchGenerateButton.addEventListener('click', this.handleWebSearchGenerate.bind(this));
     }
   }
 
@@ -604,6 +728,16 @@ class VeniceImageGenerator {
         }
       }
       
+      // Get advanced settings
+      const cfgScale = parseFloat(document.getElementById('cfg-scale')?.value || '7.5');
+      const loraStrength = parseInt(document.getElementById('lora-strength')?.value || '50');
+      const seedInput = document.getElementById('seed-input')?.value;
+      const seed = seedInput ? parseInt(seedInput) : Math.floor(Math.random() * 999999999);
+      const variants = parseInt(document.getElementById('variants')?.value || '1');
+      const format = document.getElementById('format')?.value || 'webp';
+      const hideWatermark = document.getElementById('hide-watermark')?.checked ?? true;
+      const embedMetadata = document.getElementById('embed-metadata')?.checked ?? false;
+
       const payload = {
         model: model,
         prompt: finalPrompt,
@@ -611,14 +745,20 @@ class VeniceImageGenerator {
         width: adjustedWidth,
         steps: adjustedSteps,
         return_binary: false,
-        hide_watermark: true
+        hide_watermark: hideWatermark,
+        format: format,
+        cfg_scale: cfgScale,
+        seed: seed,
+        embed_exif_metadata: embedMetadata,
+        variants: variants,
+        lora_strength: loraStrength
       };
-      
+
       // Add style_preset only if a style is selected (not "None")
       if (style && style !== "None") {
         payload.style_preset = style;
       }
-      
+
       // Add negative prompt if provided
       if (negativePrompt) {
         payload.negative_prompt = negativePrompt;
@@ -965,6 +1105,172 @@ class VeniceImageGenerator {
     });
   }
   
+  async handleWebSearchGenerate(event) {
+    event.preventDefault();
+
+    const model = document.getElementById('websearch-model')?.value;
+    const prompt = document.getElementById('websearch-prompt')?.value;
+    const negativePrompt = document.getElementById('websearch-negative')?.value || '';
+    const style = document.getElementById('websearch-style')?.value;
+    const steps = parseInt(document.getElementById('websearch-steps')?.value || '30');
+    const aspectRatio = document.getElementById('websearch-aspect')?.value || '16:9';
+    const resolution = document.getElementById('websearch-resolution')?.value || 'medium';
+
+    if (!prompt) {
+      alert('Please enter a prompt for web-enhanced generation.');
+      return;
+    }
+
+    // Get dimensions based on aspect ratio and resolution
+    const dimensions = RESOLUTION_PRESETS[aspectRatio][resolution];
+    const width = dimensions.width;
+    const height = dimensions.height;
+
+    // Show progress
+    const progressDiv = document.getElementById('websearch-progress');
+    const progressBar = document.getElementById('websearch-progress-bar');
+    const timeDisplay = document.getElementById('websearch-time');
+    const generateBtn = document.getElementById('websearch-generate-button');
+
+    if (progressDiv) progressDiv.classList.remove('hidden');
+    if (generateBtn) {
+      generateBtn.disabled = true;
+      generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Generating...';
+    }
+
+    const startTime = Date.now();
+    let progressInterval = setInterval(() => {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      if (timeDisplay) timeDisplay.textContent = `${elapsed}s`;
+      const estimatedProgress = Math.min(90, (elapsed / 60) * 100);
+      if (progressBar) progressBar.style.width = `${estimatedProgress}%`;
+    }, 100);
+
+    try {
+      const payload = {
+        model: model,
+        prompt: prompt,
+        height: height,
+        width: width,
+        steps: steps,
+        return_binary: false,
+        hide_watermark: false,
+        format: 'webp',
+        cfg_scale: 7.5,
+        seed: Math.floor(Math.random() * 999999999),
+        enable_web_search: true // Key feature for web search models
+      };
+
+      if (style && style !== "None") {
+        payload.style_preset = style;
+      }
+
+      if (negativePrompt) {
+        payload.negative_prompt = negativePrompt;
+      }
+
+      console.log('Web Search Generation payload:', payload);
+
+      let response;
+      try {
+        response = await fetch('https://api.venice.ai/api/v1/image/generate', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+      } catch (directError) {
+        console.log('Direct API failed, trying CORS proxy');
+        const proxyUrl = 'https://api.allorigins.win/raw?url=';
+        const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/image/generate');
+        response = await fetch(proxyUrl + targetUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify(payload)
+        });
+      }
+
+      const result = await response.json();
+      console.log('Web Search API response:', result);
+
+      if (!response.ok) {
+        const errorMsg = result.error?.message || result.error || result.message || 'Failed to generate image';
+        throw new Error(errorMsg);
+      }
+
+      // Extract image data
+      let imageData = null;
+      if (result.images && Array.isArray(result.images) && result.images.length > 0) {
+        imageData = result.images[0];
+      } else if (result.image) {
+        imageData = result.image;
+      }
+
+      if (imageData) {
+        if (!imageData.startsWith('data:image')) {
+          imageData = 'data:image/png;base64,' + imageData;
+        }
+
+        // Display the result
+        const imageElement = document.getElementById('generated-image');
+        if (imageElement) {
+          imageElement.src = imageData;
+
+          // Store current image
+          const modelObj = MODELS.find(m => m.id === model);
+          this.currentImage = {
+            src: imageData,
+            prompt: prompt,
+            model: model,
+            style: style === "None" ? "No preset" : style,
+            width: width,
+            height: height,
+            steps: steps,
+            webSearch: true,
+            timestamp: new Date().toISOString()
+          };
+
+          // Update image details
+          this.updateImageDetails(this.currentImage);
+
+          // Show result
+          const placeholder = document.getElementById('placeholder');
+          const resultDiv = document.getElementById('result');
+          if (placeholder) placeholder.classList.add('hidden');
+          if (resultDiv) resultDiv.classList.remove('hidden');
+        }
+
+        // Complete progress
+        if (progressBar) progressBar.style.width = '100%';
+
+      } else {
+        throw new Error('No image data received from API');
+      }
+
+    } catch (error) {
+      console.error('Error in web search generation:', error);
+      alert(`Error: ${error.message}`);
+    } finally {
+      clearInterval(progressInterval);
+
+      setTimeout(() => {
+        if (progressDiv) progressDiv.classList.add('hidden');
+        if (progressBar) progressBar.style.width = '0%';
+      }, 500);
+
+      if (generateBtn) {
+        generateBtn.disabled = false;
+        generateBtn.innerHTML = '<i class="fas fa-globe mr-2"></i>Generate with Web Search';
+      }
+    }
+  }
+
   async handleCompareModels(event) {
     event.preventDefault();
     

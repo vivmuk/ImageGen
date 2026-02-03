@@ -27,12 +27,15 @@
         <!-- Left column: Controls -->
         <div class="control-panel">
         <div class="form-container mb-4">
-          <div class="tabs flex border-b border-neon-pink border-opacity-30 mb-4">
+          <div class="tabs flex flex-wrap border-b border-neon-pink border-opacity-30 mb-4">
             <button id="generator-tab" class="tab-button active px-4 py-2 mr-2 focus:outline-none">
               <i class="fas fa-image mr-2"></i>Generator
             </button>
             <button id="optimizer-tab" class="tab-button px-4 py-2 mr-2 focus:outline-none">
               <i class="fas fa-magic mr-2"></i>Optimizer
+            </button>
+            <button id="websearch-tab" class="tab-button px-4 py-2 mr-2 focus:outline-none">
+              <i class="fas fa-globe mr-2"></i>Web Search
             </button>
             <button id="comparison-tab" class="tab-button px-4 py-2 focus:outline-none">
               <i class="fas fa-balance-scale mr-2"></i>Compare
@@ -129,8 +132,125 @@
               <!-- Hidden inputs for width and height that will be calculated based on aspect ratio -->
               <input type="hidden" id="width" value="1024">
               <input type="hidden" id="height" value="576">
-              
-              <div class="flex justify-center">
+
+              <!-- Model Capabilities Display -->
+              <div id="model-capabilities" class="model-capabilities hidden">
+                <div class="capabilities-header">
+                  <i class="fas fa-info-circle"></i>
+                  <span id="capabilities-model-name">Model Info</span>
+                </div>
+                <div class="capabilities-grid">
+                  <div class="capability-item">
+                    <span class="capability-label">Max Prompt</span>
+                    <span id="cap-prompt-limit" class="capability-value">-</span>
+                  </div>
+                  <div class="capability-item">
+                    <span class="capability-label">Max Steps</span>
+                    <span id="cap-max-steps" class="capability-value">-</span>
+                  </div>
+                  <div class="capability-item">
+                    <span class="capability-label">Dimension Divisor</span>
+                    <span id="cap-divisor" class="capability-value">-</span>
+                  </div>
+                  <div class="capability-item">
+                    <span class="capability-label">Cost/Image</span>
+                    <span id="cap-cost" class="capability-value">-</span>
+                  </div>
+                </div>
+                <div id="cap-traits" class="capabilities-traits hidden">
+                  <span class="capability-label">Traits:</span>
+                  <span id="cap-traits-list" class="traits-list"></span>
+                </div>
+              </div>
+
+              <!-- Advanced Settings (Collapsible) -->
+              <div class="advanced-settings-container">
+                <button type="button" id="toggle-advanced" class="advanced-toggle">
+                  <i class="fas fa-sliders-h mr-2"></i>Advanced Settings
+                  <i class="fas fa-chevron-down ml-auto toggle-icon"></i>
+                </button>
+                <div id="advanced-settings" class="advanced-settings hidden">
+                  <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label class="input-label" for="cfg-scale">
+                        <i class="fas fa-crosshairs text-neon-pink mr-2"></i>CFG Scale
+                        <span class="text-xs ml-1 text-neon-blue">(Prompt adherence: 0-20)</span>
+                      </label>
+                      <div class="slider-container">
+                        <input type="range" id="cfg-scale" min="0" max="20" step="0.5" value="7.5" class="slider-input">
+                        <span id="cfg-scale-value" class="slider-value">7.5</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label class="input-label" for="lora-strength">
+                        <i class="fas fa-magic text-neon-pink mr-2"></i>LoRA Strength
+                        <span class="text-xs ml-1 text-neon-blue">(0-100)</span>
+                      </label>
+                      <div class="slider-container">
+                        <input type="range" id="lora-strength" min="0" max="100" step="1" value="50" class="slider-input">
+                        <span id="lora-strength-value" class="slider-value">50</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="grid md:grid-cols-3 gap-4 mt-4">
+                    <div>
+                      <label class="input-label" for="seed-input">
+                        <i class="fas fa-dice text-neon-pink mr-2"></i>Seed
+                        <span class="text-xs ml-1 text-neon-blue">(blank = random)</span>
+                      </label>
+                      <div class="seed-input-container">
+                        <input type="number" id="seed-input" placeholder="Random" class="input-text" min="0" max="999999999">
+                        <button type="button" id="random-seed" class="seed-random-btn" title="Generate random seed">
+                          <i class="fas fa-random"></i>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label class="input-label" for="variants">
+                        <i class="fas fa-clone text-neon-pink mr-2"></i>Variants
+                        <span class="text-xs ml-1 text-neon-blue">(1-4)</span>
+                      </label>
+                      <select id="variants" class="select-input">
+                        <option value="1" selected>1 Image</option>
+                        <option value="2">2 Images</option>
+                        <option value="3">3 Images</option>
+                        <option value="4">4 Images</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label class="input-label" for="format">
+                        <i class="fas fa-file-image text-neon-pink mr-2"></i>Format
+                      </label>
+                      <select id="format" class="select-input">
+                        <option value="webp" selected>WebP (Recommended)</option>
+                        <option value="png">PNG</option>
+                        <option value="jpeg">JPEG</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="grid md:grid-cols-2 gap-4 mt-4">
+                    <div class="checkbox-container">
+                      <input type="checkbox" id="hide-watermark" checked>
+                      <label for="hide-watermark">
+                        <i class="fas fa-eye-slash mr-2"></i>Hide Watermark
+                      </label>
+                    </div>
+                    <div class="checkbox-container">
+                      <input type="checkbox" id="embed-metadata">
+                      <label for="embed-metadata">
+                        <i class="fas fa-tags mr-2"></i>Embed EXIF Metadata
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex justify-center mt-4">
                 <button type="submit" id="generate-button" class="action-button">
                   <i class="fas fa-magic mr-2"></i>Generate Image
                 </button>
@@ -170,6 +290,107 @@
             </div>
           </div>
           
+          <!-- Web Search Panel -->
+          <div id="websearch-panel" class="tab-panel hidden">
+            <div class="space-y-4">
+              <div class="websearch-info">
+                <div class="websearch-info-header">
+                  <i class="fas fa-globe"></i>
+                  <h3>Web-Enhanced Image Generation</h3>
+                </div>
+                <p>These models can search the web for real-time information to enhance your image generation. Great for current events, specific people, brands, or trending topics.</p>
+              </div>
+
+              <div>
+                <label class="input-label" for="websearch-model">
+                  <i class="fas fa-microchip text-neon-pink mr-2"></i>Web Search Model
+                </label>
+                <select id="websearch-model" class="select-input">
+                  <option value="nano-banana-pro">Nano Banana Pro ($0.18)</option>
+                  <option value="gpt-image-1-5">GPT Image 1.5 ($0.23)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="input-label" for="websearch-prompt">
+                  <i class="fas fa-search text-neon-pink mr-2"></i>Prompt (with web context)
+                </label>
+                <textarea id="websearch-prompt" placeholder="Describe what you want, including real-world references (e.g., 'Photo of the latest iPhone model on a wooden desk')" rows="3" class="input-textarea"></textarea>
+              </div>
+
+              <div>
+                <label class="input-label" for="websearch-negative">
+                  <i class="fas fa-ban text-neon-pink mr-2"></i>Negative Prompt (optional)
+                </label>
+                <textarea id="websearch-negative" placeholder="What to avoid in the image..." rows="2" class="input-textarea"></textarea>
+              </div>
+
+              <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label class="input-label" for="websearch-style">
+                    <i class="fas fa-palette text-neon-pink mr-2"></i>Style
+                  </label>
+                  <select id="websearch-style" class="select-input">
+                    <!-- Options will be populated by JavaScript -->
+                  </select>
+                </div>
+                <div>
+                  <label class="input-label" for="websearch-steps">
+                    <i class="fas fa-cog text-neon-pink mr-2"></i>Steps
+                  </label>
+                  <select id="websearch-steps" class="select-input">
+                    <option value="20">20 (Fast)</option>
+                    <option value="30" selected>30 (Quality)</option>
+                    <option value="40">40 (High Quality)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label class="input-label" for="websearch-aspect">
+                    <i class="fas fa-crop-alt text-neon-pink mr-2"></i>Aspect Ratio
+                  </label>
+                  <select id="websearch-aspect" class="select-input">
+                    <option value="16:9">Cinema (16:9)</option>
+                    <option value="1:1">Square (1:1)</option>
+                    <option value="3:2">Landscape (3:2)</option>
+                    <option value="9:16">Tall (9:16)</option>
+                    <option value="2:3">Portrait (2:3)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="input-label" for="websearch-resolution">
+                    <i class="fas fa-expand-arrows-alt text-neon-pink mr-2"></i>Resolution
+                  </label>
+                  <select id="websearch-resolution" class="select-input">
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                    <option value="ultra">Ultra</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="flex justify-center">
+                <button id="websearch-generate-button" class="action-button websearch-btn">
+                  <i class="fas fa-globe mr-2"></i>Generate with Web Search
+                </button>
+              </div>
+
+              <div id="websearch-progress" class="hidden">
+                <div class="bg-darker-bg border border-neon-pink rounded-md p-4">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-light font-medium"><i class="fas fa-search mr-2"></i>Searching web & generating...</span>
+                    <span id="websearch-time" class="text-neon-pink font-bold">0.0s</span>
+                  </div>
+                  <div class="w-full bg-dark-bg rounded-full h-2">
+                    <div id="websearch-progress-bar" class="bg-gradient-to-r from-neon-blue to-neon-green h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Model Comparison Panel -->
           <div id="comparison-panel" class="tab-panel hidden">
             <div class="space-y-4">

@@ -479,6 +479,289 @@ footer p {
   font-size: 0.875rem;
 }
 
+/* Model Capabilities Display */
+.model-capabilities {
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border-left: 4px solid var(--mcm-teal);
+}
+
+.capabilities-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.capabilities-header i {
+  color: var(--mcm-teal);
+}
+
+.capabilities-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+}
+
+.capability-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.capability-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.capability-value {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--mcm-teal);
+  font-family: 'Courier New', monospace;
+}
+
+.capabilities-traits {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--mcm-light-gray);
+}
+
+.traits-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: 0.5rem;
+}
+
+.trait-badge {
+  font-size: 0.65rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 50px;
+  background: var(--mcm-olive);
+  color: white;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Advanced Settings */
+.advanced-settings-container {
+  margin-top: 1rem;
+}
+
+.advanced-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0.875rem 1rem;
+  background: var(--bg-secondary);
+  border: 2px solid var(--mcm-light-gray);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.advanced-toggle:hover {
+  border-color: var(--mcm-teal);
+  background: var(--bg-card);
+}
+
+.advanced-toggle .toggle-icon {
+  transition: transform 0.3s ease;
+}
+
+.advanced-toggle.active .toggle-icon {
+  transform: rotate(180deg);
+}
+
+.advanced-settings {
+  background: var(--bg-secondary);
+  border: 2px solid var(--mcm-light-gray);
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  padding: 1.25rem;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Slider styling */
+.slider-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.slider-input {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 8px;
+  background: var(--mcm-light-gray);
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+}
+
+.slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(135deg, var(--mcm-teal), #0097A7);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 188, 212, 0.4);
+  transition: transform 0.2s ease;
+}
+
+.slider-input::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.slider-input::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(135deg, var(--mcm-teal), #0097A7);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 6px rgba(0, 188, 212, 0.4);
+}
+
+.slider-value {
+  min-width: 40px;
+  padding: 0.25rem 0.5rem;
+  background: var(--mcm-teal);
+  color: white;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+  font-family: 'Courier New', monospace;
+}
+
+/* Seed input */
+.seed-input-container {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.seed-input-container .input-text {
+  flex: 1;
+}
+
+.seed-random-btn {
+  padding: 0 1rem;
+  background: var(--mcm-orange);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.seed-random-btn:hover {
+  background: var(--mcm-burnt-orange);
+  transform: scale(1.05);
+}
+
+/* Checkbox styling */
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-card);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.checkbox-container input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--mcm-teal);
+  cursor: pointer;
+}
+
+.checkbox-container label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.checkbox-container label i {
+  color: var(--mcm-teal);
+}
+
+/* Web Search Panel */
+.websearch-info {
+  background: linear-gradient(135deg, var(--mcm-teal), #0097A7);
+  border-radius: 8px;
+  padding: 1.25rem;
+  color: white;
+  margin-bottom: 1rem;
+}
+
+.websearch-info-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.websearch-info-header i {
+  font-size: 1.5rem;
+}
+
+.websearch-info-header h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.websearch-info p {
+  font-size: 0.85rem;
+  opacity: 0.9;
+  line-height: 1.5;
+}
+
+.websearch-btn {
+  background: linear-gradient(135deg, var(--mcm-teal), #0097A7) !important;
+}
+
+.websearch-btn:hover {
+  background: linear-gradient(135deg, #0097A7, #00838F) !important;
+}
+
 /* Comparison grid - FULL WIDTH, NO RIGHT PANEL */
 #comparison-results {
   text-align: center;
@@ -942,6 +1225,47 @@ footer p {
     width: 40px;
     height: 40px;
     right: calc(100% + 1rem);
+  }
+
+  .tabs {
+    gap: 0.25rem;
+  }
+
+  .tab-button {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .tab-button i {
+    margin-right: 0.25rem;
+  }
+
+  .capabilities-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .slider-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .slider-value {
+    align-self: flex-start;
+  }
+
+  .seed-input-container {
+    flex-direction: column;
+  }
+
+  .seed-random-btn {
+    width: 100%;
+    padding: 0.75rem;
+  }
+
+  .websearch-info-header {
+    flex-direction: column;
+    text-align: center;
   }
 
   #comparison-grid {
