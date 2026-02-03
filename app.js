@@ -409,6 +409,9 @@ class VeniceImageGenerator {
     optimizerPanel.classList.add('hidden');
     comparisonPanel.classList.add('hidden');
 
+    // Remove comparison mode class by default
+    document.body.classList.remove('comparison-mode');
+
     // Show active tab and panel
     switch(activeTab) {
       case 'generator':
@@ -434,6 +437,8 @@ class VeniceImageGenerator {
       case 'comparison':
         comparisonTab.classList.add('active');
         comparisonPanel.classList.remove('hidden');
+        // Add comparison mode class for full-width layout
+        document.body.classList.add('comparison-mode');
         // Hide right panel for comparison - show full width
         if (resultsPanel) resultsPanel.style.display = 'none';
         break;
@@ -1490,18 +1495,19 @@ class VeniceImageGenerator {
       gridItem.innerHTML = `
         <div class="comparison-image-container">
           <img src="${imageResult.src}" alt="${model.name}" class="comparison-image"
-               onclick="openImageModal('${imageResult.src}', '${model.name}', '${imageResult.width}', '${imageResult.height}', '${imageResult.steps}', '${imageResult.style}', '${generationTime.toFixed(1)}s', '${safeMode}', '${cost.toFixed(4)}')">
+               onclick="openImageModal('${imageResult.src}', '${model.name}', '${model.id}', '${imageResult.width}', '${imageResult.height}', '${imageResult.steps}', '${imageResult.style}', '${generationTime.toFixed(1)}s', '${safeMode}', '${cost.toFixed(4)}')">
         </div>
         <div class="comparison-card-content">
           <h3 class="comparison-model-name">${model.name}</h3>
+          <p class="comparison-model-id">${model.id}</p>
           <div class="comparison-metadata">
-            <span class="comparison-badge" style="background: var(--mcm-teal); color: white;">${imageResult.width}×${imageResult.height}</span>
-            <span class="comparison-badge" style="background: var(--mcm-orange); color: white;">${imageResult.steps} steps</span>
-            <span class="comparison-badge" style="background: var(--mcm-olive); color: white;">${imageResult.style}</span>
-            <span class="comparison-badge" style="background: var(--mcm-mustard); color: var(--text-primary);">${generationTime.toFixed(1)}s</span>
-            <span class="comparison-badge" style="background: ${safeModeColor}; color: white;">${safeMode}</span>
+            <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-teal), #0097A7); color: white;"><i class="fas fa-expand-alt"></i> ${imageResult.width}×${imageResult.height}</span>
+            <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-orange), #E65100); color: white;"><i class="fas fa-layer-group"></i> ${imageResult.steps}</span>
+            <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-olive), #558B2F); color: white;"><i class="fas fa-paint-brush"></i> ${imageResult.style}</span>
+            <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-mustard), #FF8F00); color: var(--text-primary);"><i class="fas fa-clock"></i> ${generationTime.toFixed(1)}s</span>
+            <span class="comparison-badge" style="background: ${safeModeColor}; color: white;"><i class="fas fa-shield-alt"></i> ${safeMode}</span>
           </div>
-          <div class="comparison-cost">Cost: $${cost.toFixed(4)}</div>
+          <div class="comparison-cost"><i class="fas fa-coins"></i> $${cost.toFixed(4)}</div>
           <button onclick="downloadComparisonImage('${imageResult.src}', '${model.name}')"
                   class="comparison-download-btn">
             <i class="fas fa-download mr-2"></i>Download
@@ -1525,11 +1531,13 @@ class VeniceImageGenerator {
         </div>
         <div class="comparison-card-content">
           <h3 class="comparison-model-name">${model.name}</h3>
+          <p class="comparison-model-id">${model.id}</p>
           <div class="comparison-metadata">
-            <span class="comparison-badge" style="background: var(--mcm-warm-gray); color: white;">${generationTime.toFixed(1)}s</span>
+            <span class="comparison-badge" style="background: var(--mcm-warm-gray); color: white;"><i class="fas fa-clock"></i> ${generationTime.toFixed(1)}s</span>
+            <span class="comparison-badge" style="background: var(--mcm-rust); color: white;"><i class="fas fa-times-circle"></i> Failed</span>
           </div>
-          <div class="comparison-cost">Cost: $0.0000</div>
-          <p class="text-xs text-medium mt-2">${errorMessage}</p>
+          <div class="comparison-cost"><i class="fas fa-coins"></i> $0.0000</div>
+          <p class="text-xs text-medium mt-2" style="color: var(--mcm-orange);">${errorMessage}</p>
         </div>
       `;
     }
@@ -1666,31 +1674,34 @@ let currentImageIndex = 0;
 let allComparisonResults = [];
 
 // Global function for opening image modal
-function openImageModal(src, modelName, width, height, steps, style, generationTime, safeMode, cost) {
+function openImageModal(src, modelName, modelId, width, height, steps, style, generationTime, safeMode, cost) {
   const modal = document.getElementById('image-modal');
   const modalImage = document.getElementById('modal-image');
   const modalTitle = document.getElementById('modal-title');
   const modalMetadata = document.getElementById('modal-metadata');
   const modalDownload = document.getElementById('modal-download');
-  
+
   if (!modal || !modalImage || !modalTitle || !modalMetadata || !modalDownload) return;
-  
+
   // Set image
   modalImage.src = src;
-  
-  // Set title
-  modalTitle.textContent = modelName;
-  
-  // Set metadata
-  modalMetadata.innerHTML = `
-    <span class="comparison-badge" style="background: var(--mcm-teal); color: white;">${width}×${height}</span>
-    <span class="comparison-badge" style="background: var(--mcm-orange); color: white;">${steps} steps</span>
-    <span class="comparison-badge" style="background: var(--mcm-olive); color: white;">${style}</span>
-    <span class="comparison-badge" style="background: var(--mcm-mustard); color: var(--text-primary);">${generationTime}</span>
-    <span class="comparison-badge" style="background: ${safeMode === 'Safe Mode' ? 'var(--mcm-olive)' : 'var(--mcm-orange)'}; color: white;">${safeMode}</span>
-    <span class="comparison-badge" style="background: var(--mcm-olive); color: white;">Cost: $${cost}</span>
+
+  // Set title with model ID
+  modalTitle.innerHTML = `
+    ${modelName}
+    <div class="modal-model-id">${modelId}</div>
   `;
-  
+
+  // Set metadata with pill-style badges
+  modalMetadata.innerHTML = `
+    <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-teal), #0097A7); color: white;"><i class="fas fa-expand-alt"></i> ${width}×${height}</span>
+    <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-orange), #E65100); color: white;"><i class="fas fa-layer-group"></i> ${steps}</span>
+    <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-olive), #558B2F); color: white;"><i class="fas fa-paint-brush"></i> ${style}</span>
+    <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-mustard), #FF8F00); color: var(--text-primary);"><i class="fas fa-clock"></i> ${generationTime}</span>
+    <span class="comparison-badge" style="background: ${safeMode === 'Safe Mode' ? 'linear-gradient(135deg, var(--mcm-olive), #558B2F)' : 'linear-gradient(135deg, var(--mcm-orange), #E65100)'}; color: white;"><i class="fas fa-shield-alt"></i> ${safeMode}</span>
+    <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-olive), #558B2F); color: white;"><i class="fas fa-coins"></i> $${cost}</span>
+  `;
+
   // Set download handler
   modalDownload.onclick = () => downloadComparisonImage(src, modelName);
 
@@ -1762,19 +1773,24 @@ function navigateImage(direction) {
     const modalDownload = document.getElementById('modal-download');
 
     if (modalImage) modalImage.src = result.image.src;
-    if (modalTitle) modalTitle.textContent = result.model.name;
+    if (modalTitle) {
+      modalTitle.innerHTML = `
+        ${result.model.name}
+        <div class="modal-model-id">${result.model.id}</div>
+      `;
+    }
     if (modalMetadata) {
       const safeMode = result.image.safeMode ? 'Safe Mode' : 'Adult Mode';
       const cost = result.cost || '0.0000';
       const generationTime = result.generationTime ? `${result.generationTime.toFixed(1)}s` : 'N/A';
 
       modalMetadata.innerHTML = `
-        <span class="comparison-badge" style="background: var(--mcm-teal); color: white;">${result.image.width}×${result.image.height}</span>
-        <span class="comparison-badge" style="background: var(--mcm-orange); color: white;">${result.image.steps} steps</span>
-        <span class="comparison-badge" style="background: var(--mcm-olive); color: white;">${result.image.style}</span>
-        <span class="comparison-badge" style="background: var(--mcm-mustard); color: var(--text-primary);">${generationTime}</span>
-        <span class="comparison-badge" style="background: ${safeMode === 'Safe Mode' ? 'var(--mcm-olive)' : 'var(--mcm-orange)'}; color: white;">${safeMode}</span>
-        <span class="comparison-badge" style="background: var(--mcm-olive); color: white;">Cost: $${cost}</span>
+        <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-teal), #0097A7); color: white;"><i class="fas fa-expand-alt"></i> ${result.image.width}×${result.image.height}</span>
+        <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-orange), #E65100); color: white;"><i class="fas fa-layer-group"></i> ${result.image.steps}</span>
+        <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-olive), #558B2F); color: white;"><i class="fas fa-paint-brush"></i> ${result.image.style}</span>
+        <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-mustard), #FF8F00); color: var(--text-primary);"><i class="fas fa-clock"></i> ${generationTime}</span>
+        <span class="comparison-badge" style="background: ${safeMode === 'Safe Mode' ? 'linear-gradient(135deg, var(--mcm-olive), #558B2F)' : 'linear-gradient(135deg, var(--mcm-orange), #E65100)'}; color: white;"><i class="fas fa-shield-alt"></i> ${safeMode}</span>
+        <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-olive), #558B2F); color: white;"><i class="fas fa-coins"></i> $${cost}</span>
       `;
     }
     if (modalDownload) {
