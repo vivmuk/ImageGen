@@ -1,7 +1,18 @@
 // Venice AI Image Generator Application
 
-// API Key (as provided)
-const API_KEY = "Y4khTZkh2WEx4N93d9CS6vYxrfzvwAenIm4oV02R6O";
+// API Key management - stored in localStorage, never hardcoded
+function getApiKey() {
+  return localStorage.getItem('venice_api_key') || '';
+}
+
+function setApiKey(key) {
+  localStorage.setItem('venice_api_key', key.trim());
+}
+
+function hasApiKey() {
+  const key = getApiKey();
+  return key && key.trim().length > 0;
+}
 
 // Model options from Venice AI (will be populated dynamically)
 let MODELS = [];
@@ -175,7 +186,7 @@ async function fetchModels() {
       response = await fetch('https://api.venice.ai/api/v1/models?type=image', {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${API_KEY}`,
+          'Authorization': `Bearer ${getApiKey()}`,
           'Content-Type': 'application/json'
         }
       });
@@ -187,7 +198,7 @@ async function fetchModels() {
       response = await fetch(proxyUrl + targetUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${API_KEY}`,
+          'Authorization': `Bearer ${getApiKey()}`,
           'Content-Type': 'application/json',
           'X-Requested-With': 'XMLHttpRequest'
         }
@@ -282,6 +293,40 @@ const RESOLUTION_PRESETS = {
   }
 };
 
+// API Key modal functions
+function showApiKeyModal(message) {
+  const modal = document.getElementById('api-key-modal');
+  if (modal) {
+    // Pre-fill with existing key if any
+    const input = document.getElementById('api-key-input');
+    if (input) input.value = getApiKey();
+
+    const msgEl = document.getElementById('api-key-modal-message');
+    if (msgEl) msgEl.textContent = message || '';
+
+    modal.classList.remove('hidden');
+  }
+}
+
+function hideApiKeyModal() {
+  const modal = document.getElementById('api-key-modal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function saveApiKeyAndInit() {
+  const input = document.getElementById('api-key-input');
+  const key = input ? input.value.trim() : '';
+  if (!key) {
+    const msgEl = document.getElementById('api-key-modal-message');
+    if (msgEl) msgEl.textContent = 'Please enter a valid API key.';
+    return;
+  }
+  setApiKey(key);
+  hideApiKeyModal();
+  // Re-initialize the app now that we have a key
+  window._veniceApp = new VeniceImageGenerator();
+}
+
 // Main application class
 class VeniceImageGenerator {
   constructor() {
@@ -292,6 +337,11 @@ class VeniceImageGenerator {
   }
 
   async initializeApp() {
+    // Check for API key before doing anything else
+    if (!hasApiKey()) {
+      showApiKeyModal();
+      return;
+    }
     // Fetch models first, then setup DOM
     await fetchModels();
     this.setupDOM();
@@ -772,7 +822,7 @@ class VeniceImageGenerator {
         response = await fetch('https://api.venice.ai/api/v1/image/generate', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${API_KEY}`,
+            'Authorization': `Bearer ${getApiKey()}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(payload)
@@ -784,7 +834,7 @@ class VeniceImageGenerator {
         response = await fetch(proxyUrl + targetUrl, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${API_KEY}`,
+            'Authorization': `Bearer ${getApiKey()}`,
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'
           },
@@ -947,7 +997,7 @@ class VeniceImageGenerator {
         response = await fetch('https://api.venice.ai/api/v1/chat/completions', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${API_KEY}`,
+            'Authorization': `Bearer ${getApiKey()}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(chatPayload)
@@ -959,7 +1009,7 @@ class VeniceImageGenerator {
         response = await fetch(proxyUrl + targetUrl, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${API_KEY}`,
+            'Authorization': `Bearer ${getApiKey()}`,
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'
           },
@@ -1176,7 +1226,7 @@ class VeniceImageGenerator {
         response = await fetch('https://api.venice.ai/api/v1/image/generate', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${API_KEY}`,
+            'Authorization': `Bearer ${getApiKey()}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(payload)
@@ -1188,7 +1238,7 @@ class VeniceImageGenerator {
         response = await fetch(proxyUrl + targetUrl, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${API_KEY}`,
+            'Authorization': `Bearer ${getApiKey()}`,
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'
           },
@@ -1453,7 +1503,7 @@ class VeniceImageGenerator {
         response = await fetch('https://api.venice.ai/api/v1/image/generate', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${API_KEY}`,
+            'Authorization': `Bearer ${getApiKey()}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(payload)
@@ -1465,7 +1515,7 @@ class VeniceImageGenerator {
         response = await fetch(proxyUrl + targetUrl, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${API_KEY}`,
+            'Authorization': `Bearer ${getApiKey()}`,
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'
           },
@@ -2119,7 +2169,23 @@ function closeImageModal() {
 
 // Initialize the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-  new VeniceImageGenerator();
+  window._veniceApp = new VeniceImageGenerator();
+
+  // Wire up the API key modal buttons
+  const saveKeyBtn = document.getElementById('save-api-key-btn');
+  if (saveKeyBtn) saveKeyBtn.addEventListener('click', saveApiKeyAndInit);
+
+  const apiKeyInput = document.getElementById('api-key-input');
+  if (apiKeyInput) {
+    apiKeyInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') saveApiKeyAndInit();
+    });
+  }
+
+  const changeKeyBtn = document.getElementById('change-api-key-btn');
+  if (changeKeyBtn) {
+    changeKeyBtn.addEventListener('click', () => showApiKeyModal('Update your Venice AI API key below.'));
+  }
   
   // Add modal event listeners
   const modal = document.getElementById('image-modal');

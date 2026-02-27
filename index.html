@@ -19,6 +19,11 @@
         V's Image Generator
       </h1>
       <p class="text-center text-medium mt-2">Create stunning AI-generated images with custom styles</p>
+      <div class="flex justify-center mt-3">
+        <button id="change-api-key-btn" class="text-xs px-3 py-1 rounded border border-neon-pink border-opacity-50 text-medium hover:text-neon-pink hover:border-opacity-100 transition-colors">
+          <i class="fas fa-key mr-1"></i>Set API Key
+        </button>
+      </div>
     </header>
     
     <div id="app">
@@ -581,6 +586,56 @@
     </div>
   </div>
   
+  <!-- API Key Setup Modal -->
+  <div id="api-key-modal" class="modal hidden">
+    <div class="modal-overlay">
+      <div class="modal-content" style="max-width:520px;padding:2rem;">
+        <h2 class="text-2xl font-bold text-light mb-2">
+          <i class="fas fa-key text-neon-pink mr-2"></i>Venice AI API Key Required
+        </h2>
+        <p class="text-medium text-sm mb-4">
+          This app uses the <strong class="text-light">Venice AI API</strong> to generate images.
+          You need a free API key to get started — your key is saved only in your browser and never sent anywhere else.
+        </p>
+
+        <div class="bg-darker-bg border border-neon-blue border-opacity-40 rounded-md p-4 mb-4 text-sm">
+          <p class="font-semibold text-neon-blue mb-2"><i class="fas fa-info-circle mr-1"></i>How to get your Venice AI API key:</p>
+          <ol class="list-decimal list-inside space-y-1 text-medium">
+            <li>Go to <strong class="text-light">venice.ai</strong> and create a free account</li>
+            <li>In your account dashboard, navigate to <strong class="text-light">Settings &rarr; API</strong></li>
+            <li>Click <strong class="text-light">Generate API Key</strong> and copy it</li>
+            <li>Paste it in the field below and click <strong class="text-light">Save &amp; Start</strong></li>
+          </ol>
+        </div>
+
+        <p id="api-key-modal-message" class="text-red-400 text-sm mb-2 min-h-[1.25rem]"></p>
+
+        <label class="input-label mb-1" for="api-key-input">
+          <i class="fas fa-lock text-neon-pink mr-1"></i>Your Venice AI API Key
+        </label>
+        <input
+          type="password"
+          id="api-key-input"
+          placeholder="Paste your API key here..."
+          autocomplete="off"
+          class="input-text w-full mb-4"
+          style="font-family:monospace;"
+        >
+
+        <div class="text-xs text-medium mb-4">
+          <i class="fas fa-shield-alt text-neon-green mr-1"></i>
+          Your key is stored only in your browser's <code>localStorage</code> and is never transmitted to any third party.
+        </div>
+
+        <div class="flex justify-center">
+          <button id="save-api-key-btn" class="action-button">
+            <i class="fas fa-check mr-2"></i>Save &amp; Start
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html> 
