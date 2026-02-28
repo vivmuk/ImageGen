@@ -976,7 +976,7 @@ class VeniceImageGenerator {
     try {
       // Prepare request body for chat API
       const chatPayload = {
-        model: "llama-3.3-70b", // Using Llama model for text generation
+        model: "grok-41-fast", // Using Grok model for prompt optimization
         messages: [
           {
             role: "system",

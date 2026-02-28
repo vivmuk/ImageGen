@@ -3,569 +3,729 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>V's Image Generator</title>
-  <link rel="stylesheet" href="styles.css">
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-  <!-- Font Awesome for icons -->
+  <title>V/GEN — AI Image Generator</title>
+
+  <!-- Algorithmic / Generative design fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <!-- Google Fonts: Abril Fatface, Playfair Display, and bold sans-serif -->
-  <link href="https://fonts.googleapis.com/css2?family=Abril+Fatface&family=Playfair+Display:wght@400;700;900&family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind (for utility classes used by JS inline templates) -->
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+
+  <!-- Our design system -->
+  <link rel="stylesheet" href="styles.css">
 </head>
-<body class="bg-dark-bg min-h-screen font-inter">
-  <div class="container mx-auto py-8 px-4">
-    <header class="mb-8">
-      <h1 class="text-4xl font-bold app-title text-center">
-        <i class="fas fa-paint-brush text-neon-pink mr-2"></i>
-        V's Image Generator
-      </h1>
-      <p class="text-center text-medium mt-2">Create stunning AI-generated images with custom styles</p>
-      <div class="flex justify-center mt-3">
-        <button id="change-api-key-btn" class="text-xs px-3 py-1 rounded border border-neon-pink border-opacity-50 text-medium hover:text-neon-pink hover:border-opacity-100 transition-colors">
-          <i class="fas fa-key mr-1"></i>Set API Key
+<body>
+
+  <!-- ╔══════════════════════════════════════════════════════╗
+       ║  PROCEDURAL CANVAS BACKGROUND                       ║
+       ╚══════════════════════════════════════════════════════╝ -->
+  <canvas id="bg-canvas"></canvas>
+
+  <!-- ╔══════════════════════════════════════════════════════╗
+       ║  APP LAYOUT                                         ║
+       ╚══════════════════════════════════════════════════════╝ -->
+  <div id="app-layout">
+
+    <!-- ── SIDEBAR NAVIGATION ───────────────────────────── -->
+    <nav id="sidebar">
+
+      <div class="sidebar-brand">
+        <div class="brand-icon">V</div>
+        <div class="brand-text">
+          <span class="brand-name">V/GEN</span>
+          <span class="brand-version">venice.ai</span>
+        </div>
+      </div>
+
+      <div class="sidebar-section-label">TOOLS</div>
+
+      <div class="nav-list">
+        <button id="generator-tab" class="nav-item active"
+                data-page-title="Generate"
+                data-page-sub="Create stunning AI images with precision control">
+          <span class="nav-icon"><i class="fas fa-wand-magic-sparkles"></i></span>
+          <span class="nav-text">Generate</span>
+        </button>
+
+        <button id="optimizer-tab" class="nav-item"
+                data-page-title="Optimize"
+                data-page-sub="Enhance your prompts with AI intelligence">
+          <span class="nav-icon"><i class="fas fa-brain"></i></span>
+          <span class="nav-text">Optimize</span>
+        </button>
+
+        <button id="websearch-tab" class="nav-item"
+                data-page-title="Web Search"
+                data-page-sub="Generate images with real-time web context">
+          <span class="nav-icon"><i class="fas fa-globe"></i></span>
+          <span class="nav-text">Web Search</span>
+        </button>
+
+        <button id="comparison-tab" class="nav-item nav-compare"
+                data-page-title="Compare"
+                data-page-sub="Test every model in parallel — side by side">
+          <span class="nav-icon"><i class="fas fa-table-cells-large"></i></span>
+          <span class="nav-text">Compare</span>
+          <span class="nav-badge">∞</span>
         </button>
       </div>
-    </header>
-    
-    <div id="app">
-      <!-- Main content area -->
-      <div id="main-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <!-- Left column: Controls -->
-        <div class="control-panel">
-        <div class="form-container mb-4">
-          <div class="tabs flex flex-wrap border-b border-neon-pink border-opacity-30 mb-4">
-            <button id="generator-tab" class="tab-button active px-4 py-2 mr-2 focus:outline-none">
-              <i class="fas fa-image mr-2"></i>Generator
-            </button>
-            <button id="optimizer-tab" class="tab-button px-4 py-2 mr-2 focus:outline-none">
-              <i class="fas fa-magic mr-2"></i>Optimizer
-            </button>
-            <button id="websearch-tab" class="tab-button px-4 py-2 mr-2 focus:outline-none">
-              <i class="fas fa-globe mr-2"></i>Web Search
-            </button>
-            <button id="comparison-tab" class="tab-button px-4 py-2 focus:outline-none">
-              <i class="fas fa-balance-scale mr-2"></i>Compare
-            </button>
-          </div>
-          
-          <!-- Generator Form -->
-          <div id="generator-panel" class="tab-panel">
-            <form id="generate-form" class="space-y-4">
-              <div class="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label class="input-label" for="model">
-                    <i class="fas fa-microchip text-neon-pink mr-2"></i>Model
-                  </label>
-                  <select id="model" class="select-input">
-                    <!-- Options will be populated by JavaScript -->
-                  </select>
-                </div>
-                
-                <div>
-                  <label class="input-label" for="style">
-                    <i class="fas fa-palette text-neon-pink mr-2"></i>Style Preset
-                    <span class="text-xs ml-1 text-neon-blue">(select None for no preset)</span>
-                  </label>
-                  <select id="style" class="select-input">
-                    <!-- Options will be populated by JavaScript -->
-                  </select>
-                </div>
-              </div>
-              
-              <div>
-                <label class="input-label" for="prompt">
-                  <i class="fas fa-comment-alt text-neon-pink mr-2"></i>Prompt
-                </label>
-                <textarea id="prompt" placeholder="Describe what you want to generate..." rows="3" class="input-textarea"></textarea>
-              </div>
-              
-              <div>
-                <label class="input-label" for="negative-prompt">
-                  <i class="fas fa-ban text-neon-pink mr-2"></i>Negative Prompt (optional)
-                </label>
-                <textarea id="negative-prompt" placeholder="Describe what you don't want in the image..." rows="2" class="input-textarea"></textarea>
-              </div>
-              
-              <div>
-                <label class="input-label" for="banner-text">
-                  <i class="fas fa-text-width text-neon-pink mr-2"></i>Banner Text (optional)
-                  <span class="text-xs ml-1 text-neon-blue">(will be added as a red banner with white text at the top of the image)</span>
-                </label>
-                <input type="text" id="banner-text" placeholder="Text to display on the image..." class="input-text">
-              </div>
-              
-              <div class="grid md:grid-cols-3 gap-4">
-                <div>
-                  <label class="input-label" for="aspect-ratio">
-                    <i class="fas fa-crop-alt text-neon-pink mr-2"></i>Aspect Ratio
-                  </label>
-                  <select id="aspect-ratio" class="select-input">
-                    <option value="16:9">Cinema (16:9)</option>
-                    <option value="1:1">Square (1:1)</option>
-                    <option value="3:2">Landscape (3:2)</option>
-                    <option value="9:16">Tall (9:16)</option>
-                    <option value="2:3">Portrait (2:3)</option>
-                    <option value="4:3">Classic (4:3)</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label class="input-label" for="resolution">
-                    <i class="fas fa-expand-arrows-alt text-neon-pink mr-2"></i>Resolution
-                  </label>
-                  <select id="resolution" class="select-input">
-                    <option value="low">Low</option>
-                    <option value="medium" selected>Medium</option>
-                    <option value="high">High</option>
-                    <option value="ultra">Ultra</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label class="input-label" for="steps">
-                    <i class="fas fa-project-diagram text-neon-pink mr-2"></i>Steps
-                  </label>
-                  <select id="steps" class="select-input">
-                    <option value="10">10 (Fast)</option>
-                    <option value="20" selected>20 (Standard)</option>
-                    <option value="30">30 (Quality)</option>
-                    <option value="40">40 (High Quality)</option>
-                    <option value="50">50 (Maximum)</option>
-                  </select>
-                </div>
-              </div>
-              
-              <!-- Hidden inputs for width and height that will be calculated based on aspect ratio -->
-              <input type="hidden" id="width" value="1024">
-              <input type="hidden" id="height" value="576">
 
-              <!-- Model Capabilities Display -->
-              <div id="model-capabilities" class="model-capabilities hidden">
-                <div class="capabilities-header">
-                  <i class="fas fa-info-circle"></i>
-                  <span id="capabilities-model-name">Model Info</span>
-                </div>
-                <div class="capabilities-grid">
-                  <div class="capability-item">
-                    <span class="capability-label">Max Prompt</span>
-                    <span id="cap-prompt-limit" class="capability-value">-</span>
-                  </div>
-                  <div class="capability-item">
-                    <span class="capability-label">Max Steps</span>
-                    <span id="cap-max-steps" class="capability-value">-</span>
-                  </div>
-                  <div class="capability-item">
-                    <span class="capability-label">Dimension Divisor</span>
-                    <span id="cap-divisor" class="capability-value">-</span>
-                  </div>
-                  <div class="capability-item">
-                    <span class="capability-label">Cost/Image</span>
-                    <span id="cap-cost" class="capability-value">-</span>
-                  </div>
-                </div>
-                <div id="cap-traits" class="capabilities-traits hidden">
-                  <span class="capability-label">Traits:</span>
-                  <span id="cap-traits-list" class="traits-list"></span>
-                </div>
-              </div>
+      <div class="sidebar-footer">
+        <button id="change-api-key-btn" class="nav-item nav-item-sm">
+          <span class="nav-icon"><i class="fas fa-key"></i></span>
+          <span class="nav-text">API Key</span>
+        </button>
+        <div class="sidebar-system-info">
+          <div class="system-dot"></div>
+          <span>Venice AI</span>
+        </div>
+      </div>
+    </nav><!-- /sidebar -->
 
-              <!-- Advanced Settings (Collapsible) -->
-              <div class="advanced-settings-container">
-                <button type="button" id="toggle-advanced" class="advanced-toggle">
-                  <i class="fas fa-sliders-h mr-2"></i>Advanced Settings
-                  <i class="fas fa-chevron-down ml-auto toggle-icon"></i>
-                </button>
-                <div id="advanced-settings" class="advanced-settings hidden">
+    <!-- ── MAIN CONTENT WRAPPER ──────────────────────────── -->
+    <div id="app-wrapper">
+
+      <!-- Page Header (updates per tab) -->
+      <header id="page-header">
+        <div class="page-heading">
+          <h1 id="page-title">Generate</h1>
+          <p id="page-subtitle">Create stunning AI images with precision control</p>
+        </div>
+      </header>
+
+      <!-- ── APP CONTENT ─────────────────────────────────── -->
+      <div id="app">
+
+        <!-- 2-column split: controls | results (comparison hides results via JS) -->
+        <div id="main-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+          <!-- ──────────────────────────────────────────────
+               LEFT COLUMN: CONTROLS
+               ────────────────────────────────────────────── -->
+          <div class="control-panel">
+            <div class="form-container">
+
+              <!-- ==========================================
+                   GENERATOR PANEL
+                   ========================================== -->
+              <div id="generator-panel" class="tab-panel">
+                <form id="generate-form" class="space-y-4">
+
                   <div class="grid md:grid-cols-2 gap-4">
                     <div>
-                      <label class="input-label" for="cfg-scale">
-                        <i class="fas fa-crosshairs text-neon-pink mr-2"></i>CFG Scale
-                        <span class="text-xs ml-1 text-neon-blue">(Prompt adherence: 0-20)</span>
+                      <label class="input-label" for="model">
+                        <i class="fas fa-microchip"></i>Model
                       </label>
-                      <div class="slider-container">
-                        <input type="range" id="cfg-scale" min="0" max="20" step="0.5" value="7.5" class="slider-input">
-                        <span id="cfg-scale-value" class="slider-value">7.5</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label class="input-label" for="lora-strength">
-                        <i class="fas fa-magic text-neon-pink mr-2"></i>LoRA Strength
-                        <span class="text-xs ml-1 text-neon-blue">(0-100)</span>
-                      </label>
-                      <div class="slider-container">
-                        <input type="range" id="lora-strength" min="0" max="100" step="1" value="50" class="slider-input">
-                        <span id="lora-strength-value" class="slider-value">50</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="grid md:grid-cols-3 gap-4 mt-4">
-                    <div>
-                      <label class="input-label" for="seed-input">
-                        <i class="fas fa-dice text-neon-pink mr-2"></i>Seed
-                        <span class="text-xs ml-1 text-neon-blue">(blank = random)</span>
-                      </label>
-                      <div class="seed-input-container">
-                        <input type="number" id="seed-input" placeholder="Random" class="input-text" min="0" max="999999999">
-                        <button type="button" id="random-seed" class="seed-random-btn" title="Generate random seed">
-                          <i class="fas fa-random"></i>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label class="input-label" for="variants">
-                        <i class="fas fa-clone text-neon-pink mr-2"></i>Variants
-                        <span class="text-xs ml-1 text-neon-blue">(1-4)</span>
-                      </label>
-                      <select id="variants" class="select-input">
-                        <option value="1" selected>1 Image</option>
-                        <option value="2">2 Images</option>
-                        <option value="3">3 Images</option>
-                        <option value="4">4 Images</option>
+                      <select id="model" class="select-input">
+                        <!-- populated by JS -->
                       </select>
                     </div>
 
                     <div>
-                      <label class="input-label" for="format">
-                        <i class="fas fa-file-image text-neon-pink mr-2"></i>Format
+                      <label class="input-label" for="style">
+                        <i class="fas fa-palette"></i>Style Preset
                       </label>
-                      <select id="format" class="select-input">
-                        <option value="webp" selected>WebP (Recommended)</option>
-                        <option value="png">PNG</option>
-                        <option value="jpeg">JPEG</option>
+                      <select id="style" class="select-input">
+                        <!-- populated by JS -->
                       </select>
                     </div>
                   </div>
 
-                  <div class="grid md:grid-cols-2 gap-4 mt-4">
-                    <div class="checkbox-container">
-                      <input type="checkbox" id="hide-watermark" checked>
-                      <label for="hide-watermark">
-                        <i class="fas fa-eye-slash mr-2"></i>Hide Watermark
-                      </label>
-                    </div>
-                    <div class="checkbox-container">
-                      <input type="checkbox" id="embed-metadata">
-                      <label for="embed-metadata">
-                        <i class="fas fa-tags mr-2"></i>Embed EXIF Metadata
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="flex justify-center mt-4">
-                <button type="submit" id="generate-button" class="action-button">
-                  <i class="fas fa-magic mr-2"></i>Generate Image
-                </button>
-              </div>
-            </form>
-          </div>
-          
-          <!-- Prompt Optimizer Panel -->
-          <div id="optimizer-panel" class="tab-panel hidden">
-            <div class="space-y-4">
-              <div>
-                <label class="input-label" for="initial-prompt">
-                  <i class="fas fa-lightbulb text-neon-pink mr-2"></i>Initial Prompt
-                </label>
-                <textarea id="initial-prompt" placeholder="Enter your initial image idea..." rows="3" class="input-textarea"></textarea>
-              </div>
-              
-              <div class="flex justify-center">
-                <button id="optimize-button" class="action-button">
-                  <i class="fas fa-wand-magic-sparkles mr-2"></i>Optimize Prompt
-                </button>
-              </div>
-              
-              <div id="optimization-result" class="hidden">
-                <label class="input-label">
-                  <i class="fas fa-check-circle text-neon-pink mr-2"></i>Optimized Prompt
-                </label>
-                <div class="p-3 bg-darker-bg border border-neon-pink rounded-md">
-                  <p id="optimized-prompt-text" class="text-light"></p>
-                </div>
-                <div class="flex justify-center mt-4">
-                  <button id="use-optimized-prompt" class="secondary-button">
-                    <i class="fas fa-arrow-right-to-bracket mr-2"></i>Use This Prompt
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Web Search Panel -->
-          <div id="websearch-panel" class="tab-panel hidden">
-            <div class="space-y-4">
-              <div class="websearch-info">
-                <div class="websearch-info-header">
-                  <i class="fas fa-globe"></i>
-                  <h3>Web-Enhanced Image Generation</h3>
-                </div>
-                <p>These models can search the web for real-time information to enhance your image generation. Great for current events, specific people, brands, or trending topics.</p>
-              </div>
-
-              <div>
-                <label class="input-label" for="websearch-model">
-                  <i class="fas fa-microchip text-neon-pink mr-2"></i>Web Search Model
-                </label>
-                <select id="websearch-model" class="select-input">
-                  <option value="nano-banana-pro">Nano Banana Pro ($0.18)</option>
-                  <option value="gpt-image-1-5">GPT Image 1.5 ($0.23)</option>
-                </select>
-              </div>
-
-              <div>
-                <label class="input-label" for="websearch-prompt">
-                  <i class="fas fa-search text-neon-pink mr-2"></i>Prompt (with web context)
-                </label>
-                <textarea id="websearch-prompt" placeholder="Describe what you want, including real-world references (e.g., 'Photo of the latest iPhone model on a wooden desk')" rows="3" class="input-textarea"></textarea>
-              </div>
-
-              <div>
-                <label class="input-label" for="websearch-negative">
-                  <i class="fas fa-ban text-neon-pink mr-2"></i>Negative Prompt (optional)
-                </label>
-                <textarea id="websearch-negative" placeholder="What to avoid in the image..." rows="2" class="input-textarea"></textarea>
-              </div>
-
-              <div class="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label class="input-label" for="websearch-style">
-                    <i class="fas fa-palette text-neon-pink mr-2"></i>Style
-                  </label>
-                  <select id="websearch-style" class="select-input">
-                    <!-- Options will be populated by JavaScript -->
-                  </select>
-                </div>
-                <div>
-                  <label class="input-label" for="websearch-steps">
-                    <i class="fas fa-cog text-neon-pink mr-2"></i>Steps
-                  </label>
-                  <select id="websearch-steps" class="select-input">
-                    <option value="20">20 (Fast)</option>
-                    <option value="30" selected>30 (Quality)</option>
-                    <option value="40">40 (High Quality)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label class="input-label" for="websearch-aspect">
-                    <i class="fas fa-crop-alt text-neon-pink mr-2"></i>Aspect Ratio
-                  </label>
-                  <select id="websearch-aspect" class="select-input">
-                    <option value="16:9">Cinema (16:9)</option>
-                    <option value="1:1">Square (1:1)</option>
-                    <option value="3:2">Landscape (3:2)</option>
-                    <option value="9:16">Tall (9:16)</option>
-                    <option value="2:3">Portrait (2:3)</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="input-label" for="websearch-resolution">
-                    <i class="fas fa-expand-arrows-alt text-neon-pink mr-2"></i>Resolution
-                  </label>
-                  <select id="websearch-resolution" class="select-input">
-                    <option value="medium" selected>Medium</option>
-                    <option value="high">High</option>
-                    <option value="ultra">Ultra</option>
-                  </select>
-                </div>
-              </div>
-
-              <div class="flex justify-center">
-                <button id="websearch-generate-button" class="action-button websearch-btn">
-                  <i class="fas fa-globe mr-2"></i>Generate with Web Search
-                </button>
-              </div>
-
-              <div id="websearch-progress" class="hidden">
-                <div class="bg-darker-bg border border-neon-pink rounded-md p-4">
-                  <div class="flex items-center justify-between mb-2">
-                    <span class="text-light font-medium"><i class="fas fa-search mr-2"></i>Searching web & generating...</span>
-                    <span id="websearch-time" class="text-neon-pink font-bold">0.0s</span>
-                  </div>
-                  <div class="w-full bg-dark-bg rounded-full h-2">
-                    <div id="websearch-progress-bar" class="bg-gradient-to-r from-neon-blue to-neon-green h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Model Comparison Panel -->
-          <div id="comparison-panel" class="tab-panel hidden">
-            <div class="space-y-4">
-              <div>
-                <label class="input-label" for="comparison-prompt">
-                  <i class="fas fa-lightbulb text-neon-pink mr-2"></i>Comparison Prompt
-                </label>
-                <textarea id="comparison-prompt" placeholder="Enter a prompt to test across all models..." rows="3" class="input-textarea"></textarea>
-              </div>
-              
-              <div class="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label class="input-label" for="comparison-style">
-                    <i class="fas fa-palette text-neon-pink mr-2"></i>Style
-                  </label>
-                  <select id="comparison-style" class="select-input">
-                    <!-- Options will be populated by JavaScript -->
-                  </select>
-                </div>
-                
-                <div>
-                  <label class="input-label" for="comparison-steps">
-                    <i class="fas fa-cog text-neon-pink mr-2"></i>Steps
-                  </label>
-                  <select id="comparison-steps" class="select-input">
-                    <option value="20">20 (Fast)</option>
-                    <option value="25" selected>25 (Balanced)</option>
-                    <option value="30">30 (Quality)</option>
-                  </select>
-                </div>
-              </div>
-              
-              <!-- Age Verification -->
-              <div class="bg-darker-bg border border-neon-pink rounded-md p-4 mb-4">
-                <div class="flex items-start space-x-3">
-                  <input type="checkbox" id="age-verification" class="mt-1 h-4 w-4 text-neon-pink bg-darker-bg border-neon-pink rounded focus:ring-neon-pink focus:ring-2">
                   <div>
-                    <label for="age-verification" class="text-sm text-light font-medium">
-                      <i class="fas fa-shield-alt text-neon-pink mr-2"></i>I am 18+ years old and want to disable content filtering
+                    <label class="input-label" for="prompt">
+                      <i class="fas fa-comment-dots"></i>Prompt
                     </label>
-                    <p class="text-xs text-medium mt-1">
-                      This allows generation of adult content. Leave unchecked for safe mode.
-                    </p>
+                    <textarea id="prompt"
+                              placeholder="Describe what you want to generate..."
+                              rows="3" class="input-textarea"></textarea>
                   </div>
+
+                  <div>
+                    <label class="input-label" for="negative-prompt">
+                      <i class="fas fa-ban"></i>Negative Prompt
+                      <span style="font-size:10px;color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span>
+                    </label>
+                    <textarea id="negative-prompt"
+                              placeholder="Describe what to avoid..."
+                              rows="2" class="input-textarea"></textarea>
+                  </div>
+
+                  <div>
+                    <label class="input-label" for="banner-text">
+                      <i class="fas fa-text-width"></i>Banner Text
+                      <span style="font-size:10px;color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0;">(optional — red banner overlay)</span>
+                    </label>
+                    <input type="text" id="banner-text"
+                           placeholder="Text to display on the image..."
+                           class="input-text">
+                  </div>
+
+                  <div class="grid md:grid-cols-3 gap-4">
+                    <div>
+                      <label class="input-label" for="aspect-ratio">
+                        <i class="fas fa-crop-alt"></i>Aspect
+                      </label>
+                      <select id="aspect-ratio" class="select-input">
+                        <option value="16:9">Cinema 16:9</option>
+                        <option value="1:1">Square 1:1</option>
+                        <option value="3:2">Landscape 3:2</option>
+                        <option value="9:16">Tall 9:16</option>
+                        <option value="2:3">Portrait 2:3</option>
+                        <option value="4:3">Classic 4:3</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label class="input-label" for="resolution">
+                        <i class="fas fa-expand-arrows-alt"></i>Resolution
+                      </label>
+                      <select id="resolution" class="select-input">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                        <option value="ultra">Ultra</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label class="input-label" for="steps">
+                        <i class="fas fa-layer-group"></i>Steps
+                      </label>
+                      <select id="steps" class="select-input">
+                        <option value="10">10 — Fast</option>
+                        <option value="20" selected>20 — Standard</option>
+                        <option value="30">30 — Quality</option>
+                        <option value="40">40 — High</option>
+                        <option value="50">50 — Maximum</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <!-- Hidden dimension inputs -->
+                  <input type="hidden" id="width"  value="1024">
+                  <input type="hidden" id="height" value="576">
+
+                  <!-- Model Capabilities -->
+                  <div id="model-capabilities" class="model-capabilities hidden">
+                    <div class="capabilities-header">
+                      <i class="fas fa-info-circle"></i>
+                      <span id="capabilities-model-name">Model Info</span>
+                    </div>
+                    <div class="capabilities-grid">
+                      <div class="capability-item">
+                        <span class="capability-label">Max Prompt</span>
+                        <span id="cap-prompt-limit" class="capability-value">—</span>
+                      </div>
+                      <div class="capability-item">
+                        <span class="capability-label">Max Steps</span>
+                        <span id="cap-max-steps" class="capability-value">—</span>
+                      </div>
+                      <div class="capability-item">
+                        <span class="capability-label">Dim. Divisor</span>
+                        <span id="cap-divisor" class="capability-value">—</span>
+                      </div>
+                      <div class="capability-item">
+                        <span class="capability-label">Cost / Image</span>
+                        <span id="cap-cost" class="capability-value">—</span>
+                      </div>
+                    </div>
+                    <div id="cap-traits" class="capabilities-traits hidden">
+                      <span class="capability-label">Traits: </span>
+                      <span id="cap-traits-list" class="traits-list"></span>
+                    </div>
+                  </div>
+
+                  <!-- Advanced Settings -->
+                  <div class="advanced-settings-container">
+                    <button type="button" id="toggle-advanced" class="advanced-toggle">
+                      <i class="fas fa-sliders-h"></i>Advanced Settings
+                      <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+
+                    <div id="advanced-settings" class="advanced-settings hidden">
+                      <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <label class="input-label" for="cfg-scale">
+                            <i class="fas fa-crosshairs"></i>CFG Scale
+                            <span style="font-size:9px;color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0;">(0–20)</span>
+                          </label>
+                          <div class="slider-container">
+                            <input type="range" id="cfg-scale" min="0" max="20" step="0.5" value="7.5" class="slider-input">
+                            <span id="cfg-scale-value" class="slider-value">7.5</span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label class="input-label" for="lora-strength">
+                            <i class="fas fa-magic"></i>LoRA Strength
+                            <span style="font-size:9px;color:var(--text-muted);font-weight:400;text-transform:none;letter-spacing:0;">(0–100)</span>
+                          </label>
+                          <div class="slider-container">
+                            <input type="range" id="lora-strength" min="0" max="100" step="1" value="50" class="slider-input">
+                            <span id="lora-strength-value" class="slider-value">50</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="grid md:grid-cols-3 gap-4 mt-4">
+                        <div>
+                          <label class="input-label" for="seed-input">
+                            <i class="fas fa-dice"></i>Seed
+                          </label>
+                          <div class="seed-input-container">
+                            <input type="number" id="seed-input" placeholder="Random"
+                                   class="input-text" min="0" max="999999999">
+                            <button type="button" id="random-seed" class="seed-random-btn"
+                                    title="Random seed">
+                              <i class="fas fa-random"></i>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label class="input-label" for="variants">
+                            <i class="fas fa-clone"></i>Variants
+                          </label>
+                          <select id="variants" class="select-input">
+                            <option value="1" selected>1 image</option>
+                            <option value="2">2 images</option>
+                            <option value="3">3 images</option>
+                            <option value="4">4 images</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label class="input-label" for="format">
+                            <i class="fas fa-file-image"></i>Format
+                          </label>
+                          <select id="format" class="select-input">
+                            <option value="webp" selected>WebP</option>
+                            <option value="png">PNG</option>
+                            <option value="jpeg">JPEG</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div class="grid md:grid-cols-2 gap-4 mt-4">
+                        <div class="checkbox-container">
+                          <input type="checkbox" id="hide-watermark" checked>
+                          <label for="hide-watermark">
+                            <i class="fas fa-eye-slash" style="margin-right:6px;color:var(--violet)"></i>Hide Watermark
+                          </label>
+                        </div>
+                        <div class="checkbox-container">
+                          <input type="checkbox" id="embed-metadata">
+                          <label for="embed-metadata">
+                            <i class="fas fa-tags" style="margin-right:6px;color:var(--violet)"></i>Embed EXIF
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div><!-- /advanced -->
+
+                  <div class="flex justify-center mt-4">
+                    <button type="submit" id="generate-button" class="action-button">
+                      <i class="fas fa-play-circle"></i>Generate Image
+                    </button>
+                  </div>
+
+                </form>
+              </div><!-- /generator-panel -->
+
+
+              <!-- ==========================================
+                   OPTIMIZER PANEL
+                   ========================================== -->
+              <div id="optimizer-panel" class="tab-panel hidden">
+                <div class="space-y-4">
+
+                  <!-- Optimizer intro -->
+                  <div style="background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.2);border-radius:12px;padding:16px;margin-bottom:4px;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                      <i class="fas fa-brain" style="color:var(--purple)"></i>
+                      <span style="font-family:var(--font-head);font-size:13px;font-weight:600;color:var(--purple);">AI Prompt Engineer</span>
+                      <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.2);border-radius:20px;padding:2px 8px;">grok-41-fast</span>
+                    </div>
+                    <p style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);line-height:1.6;">Transforms your rough idea into a detailed, optimized prompt engineered for maximum visual impact.</p>
+                  </div>
+
+                  <div>
+                    <label class="input-label" for="initial-prompt">
+                      <i class="fas fa-lightbulb"></i>Your Initial Idea
+                    </label>
+                    <textarea id="initial-prompt"
+                              placeholder="A rough concept — e.g. 'cat in space'..."
+                              rows="4" class="input-textarea"></textarea>
+                  </div>
+
+                  <div class="flex justify-center">
+                    <button id="optimize-button" class="action-button"
+                            style="background:linear-gradient(135deg,var(--purple),var(--pink));">
+                      <i class="fas fa-wand-magic-sparkles"></i>Optimize Prompt
+                    </button>
+                  </div>
+
+                  <div id="optimization-result" class="hidden">
+                    <label class="input-label">
+                      <i class="fas fa-check-circle" style="color:var(--emerald)"></i>Optimized Prompt
+                    </label>
+                    <div class="p-3 bg-darker-bg border border-neon-pink rounded-md">
+                      <p id="optimized-prompt-text" class="text-light"></p>
+                    </div>
+                    <div class="flex justify-center mt-4">
+                      <button id="use-optimized-prompt" class="secondary-button">
+                        <i class="fas fa-arrow-right"></i>Use This Prompt
+                      </button>
+                    </div>
+                  </div>
+
                 </div>
+              </div><!-- /optimizer-panel -->
+
+
+              <!-- ==========================================
+                   WEB SEARCH PANEL
+                   ========================================== -->
+              <div id="websearch-panel" class="tab-panel hidden">
+                <div class="space-y-4">
+
+                  <div class="websearch-info">
+                    <div class="websearch-info-header">
+                      <i class="fas fa-globe"></i>
+                      <h3>Web-Enhanced Generation</h3>
+                    </div>
+                    <p>These models search the web for real-time information — great for current events, specific people, brands, or trending topics.</p>
+                  </div>
+
+                  <div>
+                    <label class="input-label" for="websearch-model">
+                      <i class="fas fa-microchip"></i>Model
+                    </label>
+                    <select id="websearch-model" class="select-input">
+                      <option value="nano-banana-pro">Nano Banana Pro ($0.18)</option>
+                      <option value="gpt-image-1-5">GPT Image 1.5 ($0.23)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="input-label" for="websearch-prompt">
+                      <i class="fas fa-search"></i>Prompt
+                    </label>
+                    <textarea id="websearch-prompt"
+                              placeholder="Include real-world references (e.g. 'latest iPhone on a wood desk')..."
+                              rows="3" class="input-textarea"></textarea>
+                  </div>
+
+                  <div>
+                    <label class="input-label" for="websearch-negative">
+                      <i class="fas fa-ban"></i>Negative Prompt
+                      <span style="font-size:10px;color:var(--text-muted);font-weight:400;text-transform:none;">(optional)</span>
+                    </label>
+                    <textarea id="websearch-negative"
+                              placeholder="What to avoid..."
+                              rows="2" class="input-textarea"></textarea>
+                  </div>
+
+                  <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label class="input-label" for="websearch-style">
+                        <i class="fas fa-palette"></i>Style
+                      </label>
+                      <select id="websearch-style" class="select-input">
+                        <!-- populated by JS -->
+                      </select>
+                    </div>
+                    <div>
+                      <label class="input-label" for="websearch-steps">
+                        <i class="fas fa-layer-group"></i>Steps
+                      </label>
+                      <select id="websearch-steps" class="select-input">
+                        <option value="20">20 — Fast</option>
+                        <option value="30" selected>30 — Quality</option>
+                        <option value="40">40 — High</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label class="input-label" for="websearch-aspect">
+                        <i class="fas fa-crop-alt"></i>Aspect
+                      </label>
+                      <select id="websearch-aspect" class="select-input">
+                        <option value="16:9">Cinema 16:9</option>
+                        <option value="1:1">Square 1:1</option>
+                        <option value="3:2">Landscape 3:2</option>
+                        <option value="9:16">Tall 9:16</option>
+                        <option value="2:3">Portrait 2:3</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="input-label" for="websearch-resolution">
+                        <i class="fas fa-expand-arrows-alt"></i>Resolution
+                      </label>
+                      <select id="websearch-resolution" class="select-input">
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                        <option value="ultra">Ultra</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="flex justify-center">
+                    <button id="websearch-generate-button" class="action-button websearch-btn">
+                      <i class="fas fa-globe"></i>Generate with Web Search
+                    </button>
+                  </div>
+
+                  <div id="websearch-progress" class="hidden">
+                    <div class="compare-progress">
+                      <div class="compare-progress-info">
+                        <span class="compare-progress-label">
+                          <i class="fas fa-search fa-pulse"></i> Searching web &amp; generating…
+                        </span>
+                        <span id="websearch-time" class="compare-progress-count">0.0s</span>
+                      </div>
+                      <div class="compare-progress-track">
+                        <div id="websearch-progress-bar" class="compare-progress-fill"
+                             style="background:linear-gradient(90deg,var(--cyan),var(--emerald));width:0%"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div><!-- /websearch-panel -->
+
+
+              <!-- ==========================================
+                   COMPARE PANEL
+                   ========================================== -->
+              <div id="comparison-panel" class="tab-panel hidden">
+
+                <div class="compare-launch-card">
+
+                  <!-- Mathematical decoration -->
+                  <div class="compare-math-deco">
+                    <span class="math-sym">Σ</span>
+                    <span class="math-sym">∞</span>
+                    <span class="math-sym">∂</span>
+                    <span class="math-sym">∇</span>
+                    <span class="math-sym">≡</span>
+                  </div>
+
+                  <h2 class="compare-headline">Parallel Model Comparison</h2>
+                  <p class="compare-description">
+                    Generate the same prompt across every available model simultaneously.
+                    Compare quality, style, speed, and cost — all at once.
+                  </p>
+
+                  <!-- Prompt input -->
+                  <div class="compare-prompt-section">
+                    <label class="compare-prompt-label">Your Prompt</label>
+                    <textarea id="comparison-prompt"
+                              class="compare-prompt-textarea"
+                              placeholder="A serene mountain lake at golden hour, photorealistic, cinematic composition…"
+                              rows="4"></textarea>
+                  </div>
+
+                  <!-- Controls row -->
+                  <div class="compare-controls">
+                    <div class="compare-control">
+                      <label>Style Preset</label>
+                      <select id="comparison-style" class="select-input">
+                        <!-- populated by JS -->
+                      </select>
+                    </div>
+
+                    <div class="compare-control">
+                      <label>Quality</label>
+                      <select id="comparison-steps" class="select-input">
+                        <option value="20">20 — Fast</option>
+                        <option value="25" selected>25 — Balanced</option>
+                        <option value="30">30 — Quality</option>
+                      </select>
+                    </div>
+
+                    <div class="compare-control age-toggle">
+                      <label>&nbsp;</label>
+                      <label class="age-toggle-label" for="age-verification">
+                        <input type="checkbox" id="age-verification" class="age-checkbox">
+                        <i class="fas fa-shield-alt" style="color:var(--pink);font-size:13px;"></i>
+                        <span>18+ Mode</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <!-- Model count info -->
+                  <div class="compare-model-info">
+                    <span id="model-count">—</span>
+                    <span class="model-count-label">AI models · generates in parallel · results appear live</span>
+                  </div>
+
+                  <!-- Launch button -->
+                  <button id="compare-models-button" class="compare-launch-btn">
+                    <i class="fas fa-play-circle"></i>
+                    <span>Launch Parallel Comparison</span>
+                    <span class="launch-indicator">
+                      <span></span><span></span><span></span>
+                    </span>
+                  </button>
+
+                  <!-- Progress (shown by JS) -->
+                  <div id="comparison-progress" class="compare-progress hidden">
+                    <div class="compare-progress-info">
+                      <span class="compare-progress-label">
+                        <i class="fas fa-atom fa-spin"></i> Generating in parallel
+                      </span>
+                      <span id="comparison-progress-text" class="compare-progress-count">0/0</span>
+                    </div>
+                    <div class="compare-progress-track">
+                      <div id="comparison-progress-bar"></div>
+                    </div>
+                  </div>
+
+                </div>
+
+              </div><!-- /comparison-panel -->
+
+            </div><!-- /form-container -->
+          </div><!-- /control-panel -->
+
+
+          <!-- ──────────────────────────────────────────────
+               RIGHT COLUMN: RESULTS
+               ────────────────────────────────────────────── -->
+          <div class="results-panel">
+
+            <!-- Progress indicator -->
+            <div id="progress-container" class="hidden mb-6">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <span style="font-family:var(--font-head);font-size:13px;font-weight:600;color:var(--text-secondary);">
+                  <i class="fas fa-atom fa-spin" style="color:var(--violet);margin-right:6px;"></i>Generating image…
+                </span>
+                <span id="time-counter" style="font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--cyan);">0.0s</span>
               </div>
-              
-              <div class="flex justify-center">
-                <button id="compare-models-button" class="action-button">
-                  <i class="fas fa-balance-scale mr-2"></i>Compare All Models
+              <div style="height:6px;background:rgba(99,102,241,0.1);border-radius:3px;overflow:hidden;">
+                <div id="progress-bar" style="height:100%;border-radius:3px;width:0%;transition:width 0.3s;"></div>
+              </div>
+              <div style="display:flex;justify-content:flex-end;margin-top:4px;">
+                <span id="progress-percentage" style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted);">0%</span>
+              </div>
+            </div>
+
+            <!-- Generated image result -->
+            <div id="result" class="hidden mb-8">
+              <h2 style="font-family:var(--font-head);font-size:13px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+                <i class="fas fa-image" style="color:var(--cyan);"></i>Generated Image
+              </h2>
+
+              <div class="image-container">
+                <img id="generated-image" src="" alt="Generated image" class="image-preview">
+                <div id="image-banner" class="banner-overlay hidden"></div>
+              </div>
+
+              <div style="display:flex;justify-content:center;gap:12px;margin-top:16px;">
+                <button id="download-button" class="action-button-sm">
+                  <i class="fas fa-download"></i>Download
+                </button>
+                <button id="save-gallery-button" class="action-button-sm">
+                  <i class="fas fa-layer-group"></i>Save to Gallery
                 </button>
               </div>
-              
-              <div id="comparison-progress" class="hidden">
-                <div class="bg-darker-bg border border-neon-pink rounded-md p-4">
-                  <div class="flex items-center justify-between mb-2">
-                    <span class="text-light font-medium">Generating images...</span>
-                    <span id="comparison-progress-text" class="text-neon-pink font-bold">0/0</span>
+
+              <div class="mt-6 pt-4 border-t">
+                <h3 style="font-family:var(--font-head);font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Image Details</h3>
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">Model</span>
+                    <span id="result-model" style="font-family:var(--font-mono);font-size:11px;font-weight:600;margin-left:6px;color:var(--cyan);"></span>
                   </div>
-                  <div class="w-full bg-dark-bg rounded-full h-2">
-                    <div id="comparison-progress-bar" class="bg-gradient-to-r from-neon-pink to-neon-blue h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                  <div>
+                    <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">Style</span>
+                    <span id="result-style" style="font-family:var(--font-mono);font-size:11px;font-weight:600;margin-left:6px;color:var(--cyan);"></span>
+                  </div>
+                  <div>
+                    <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">Size</span>
+                    <span id="result-size" style="font-family:var(--font-mono);font-size:11px;font-weight:600;margin-left:6px;color:var(--cyan);"></span>
+                  </div>
+                  <div>
+                    <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted);">Steps</span>
+                    <span id="result-steps" style="font-family:var(--font-mono);font-size:11px;font-weight:600;margin-left:6px;color:var(--cyan);"></span>
                   </div>
                 </div>
               </div>
+            </div><!-- /result -->
+
+            <!-- Placeholder -->
+            <div id="placeholder">
+              <i class="fas fa-image"></i>
+              <p>Your generated image will appear here</p>
+              <p class="text-sm">Choose settings and click "Generate Image"</p>
+            </div>
+
+          </div><!-- /results-panel -->
+
+        </div><!-- /main-grid -->
+
+
+        <!-- ── COMPARISON RESULTS (full-width, below main-grid) ── -->
+        <div id="comparison-results" class="hidden mt-12">
+
+          <!-- Results header (our markup — JS inserts stats + grid below) -->
+          <div class="compare-results-header">
+            <div>
+              <h2 class="compare-results-title">
+                <i class="fas fa-table-cells-large"></i>Comparison Results
+              </h2>
+              <p class="compare-results-meta">Results appear live as each model finishes · click any image to view fullscreen</p>
             </div>
           </div>
-        </div>
-      </div>
-      
-      <!-- Right column: Results -->
-      <div class="results-panel">
-        <!-- Progress indicator moved to results panel -->
-        <div id="progress-container" class="hidden mb-6">
-          <div class="flex justify-between items-center mb-1">
-            <span class="text-sm text-light font-medium">Generating image...</span>
-            <span id="time-counter" class="text-sm font-medium text-neon-blue">0.0s</span>
+
+          <!-- JS inserts comparison-stats-table here, then comparison-grid -->
+          <div id="comparison-grid">
+            <!-- Cards added dynamically by JS -->
           </div>
-          <div class="h-2 w-full bg-darker-bg rounded-full overflow-hidden">
-            <div id="progress-bar" class="h-full" style="width: 0%"></div>
-          </div>
-          <div class="flex justify-between mt-1 text-xs text-medium">
-            <span>Processing</span>
-            <span id="progress-percentage">0%</span>
-          </div>
-        </div>
-        
-        <div id="result" class="hidden mb-8">
-          <h2 class="text-xl font-bold mb-4 text-light flex items-center">
-            <i class="fas fa-image text-neon-pink mr-2"></i>Generated Image
+
+        </div><!-- /comparison-results -->
+
+
+        <!-- ── GALLERY ───────────────────────────────────── -->
+        <div id="gallery-section" class="mt-12 hidden">
+          <h2 style="font-family:var(--font-head);font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+            <i class="fas fa-images" style="color:var(--pink);"></i>Your Gallery
           </h2>
-          <div class="image-container">
-            <img id="generated-image" src="" alt="Generated image" class="image-preview">
-            <div id="image-banner" class="banner-overlay hidden"></div>
-          </div>
-          <div class="flex justify-center mt-4 space-x-4">
-            <button id="download-button" class="action-button-sm">
-              <i class="fas fa-download mr-2"></i>Download
-            </button>
-            <button id="save-gallery-button" class="action-button-sm">
-              <i class="fas fa-save mr-2"></i>Save to Gallery
-            </button>
-          </div>
-          
-          <div class="mt-6 pt-4 border-t border-neon-pink border-opacity-30">
-            <h3 class="text-sm font-medium text-light mb-2">Image Details</h3>
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <span class="text-xs text-medium">Model:</span>
-                <span id="result-model" class="text-xs font-medium ml-1 text-neon-blue"></span>
-              </div>
-              <div>
-                <span class="text-xs text-medium">Style:</span>
-                <span id="result-style" class="text-xs font-medium ml-1 text-neon-blue"></span>
-              </div>
-              <div>
-                <span class="text-xs text-medium">Size:</span>
-                <span id="result-size" class="text-xs font-medium ml-1 text-neon-blue"></span>
-              </div>
-              <div>
-                <span class="text-xs text-medium">Steps:</span>
-                <span id="result-steps" class="text-xs font-medium ml-1 text-neon-blue"></span>
-              </div>
-            </div>
+          <div id="image-gallery" class="grid-gallery">
+            <!-- Gallery images added by JS -->
           </div>
         </div>
-        
-        <div id="placeholder" class="flex flex-col items-center justify-center h-64 border-2 border-dashed border-neon-pink rounded-lg">
-          <i class="fas fa-image text-neon-pink text-5xl mb-4"></i>
-          <p class="text-light text-center">Your generated image will appear here</p>
-          <p class="text-medium text-sm text-center mt-2">Choose your settings and click "Generate Image"</p>
-        </div>
-        
-      </div>
-    </div>
-    
-    <!-- Model Comparison Results - Full Width -->
-    <div id="comparison-results" class="hidden mt-12">
-      <h2 class="text-3xl font-bold mb-8 text-light flex items-center justify-center">
-        <i class="fas fa-balance-scale text-neon-pink mr-3"></i>Model Comparison
-      </h2>
-      <div id="comparison-grid">
-        <!-- Comparison images will be added here -->
-      </div>
-    </div>
-    
-    <!-- Gallery Section -->
-    <div id="gallery-section" class="mt-12 hidden">
-      <h2 class="text-2xl font-bold mb-4 text-light flex items-center">
-        <i class="fas fa-images text-neon-pink mr-2"></i>Your Image Gallery
-      </h2>
-      <div id="image-gallery" class="grid-gallery">
-        <!-- Gallery images will be added here -->
-      </div>
-    </div>
-    
-    <!-- Footer -->
-    <footer class="mt-12 pt-6 border-t border-neon-pink border-opacity-30">
-      <p class="text-center text-sm text-medium">
-        Powered by Venice AI API
-      </p>
-    </footer>
-  </div>
-  
-  <!-- Full-screen Image Modal -->
+
+      </div><!-- /app -->
+
+      <!-- Footer -->
+      <footer>
+        <p>Powered by Venice AI API · Algorithmic UI · Venice AI Image Generator</p>
+      </footer>
+
+    </div><!-- /app-wrapper -->
+
+  </div><!-- /app-layout -->
+
+
+  <!-- ╔══════════════════════════════════════════════════════╗
+       ║  FULL-SCREEN IMAGE MODAL                            ║
+       ╚══════════════════════════════════════════════════════╝ -->
   <div id="image-modal" class="modal hidden">
     <div class="modal-overlay">
       <div class="modal-content">
         <button id="close-modal" class="modal-close">
           <i class="fas fa-times"></i>
         </button>
+
         <div class="modal-image-container">
           <button id="modal-prev" class="modal-nav modal-nav-left">
             <i class="fas fa-chevron-left"></i>
@@ -575,67 +735,234 @@
             <i class="fas fa-chevron-right"></i>
           </button>
         </div>
+
         <div class="modal-info">
           <h3 id="modal-title" class="modal-title"></h3>
           <div id="modal-metadata" class="modal-metadata"></div>
           <button id="modal-download" class="modal-download-btn">
-            <i class="fas fa-download mr-2"></i>Download
+            <i class="fas fa-download"></i>Download
           </button>
         </div>
       </div>
     </div>
   </div>
-  
-  <!-- API Key Setup Modal -->
+
+
+  <!-- ╔══════════════════════════════════════════════════════╗
+       ║  API KEY MODAL                                      ║
+       ╚══════════════════════════════════════════════════════╝ -->
   <div id="api-key-modal" class="modal hidden">
     <div class="modal-overlay">
-      <div class="modal-content" style="max-width:520px;padding:2rem;">
-        <h2 class="text-2xl font-bold text-light mb-2">
-          <i class="fas fa-key text-neon-pink mr-2"></i>Venice AI API Key Required
-        </h2>
-        <p class="text-medium text-sm mb-4">
-          This app uses the <strong class="text-light">Venice AI API</strong> to generate images.
-          You need a free API key to get started — your key is saved only in your browser and never sent anywhere else.
-        </p>
+      <div class="modal-content" style="width:520px;max-width:95vw;padding:0;">
+        <div style="padding:36px;">
 
-        <div class="bg-darker-bg border border-neon-blue border-opacity-40 rounded-md p-4 mb-4 text-sm">
-          <p class="font-semibold text-neon-blue mb-2"><i class="fas fa-info-circle mr-1"></i>How to get your Venice AI API key:</p>
-          <ol class="list-decimal list-inside space-y-1 text-medium">
-            <li>Go to <strong class="text-light">venice.ai</strong> and create a free account</li>
-            <li>In your account dashboard, navigate to <strong class="text-light">Settings &rarr; API</strong></li>
-            <li>Click <strong class="text-light">Generate API Key</strong> and copy it</li>
-            <li>Paste it in the field below and click <strong class="text-light">Save &amp; Start</strong></li>
-          </ol>
-        </div>
+          <h2 style="font-family:var(--font-head);font-size:22px;font-weight:700;color:var(--text-primary);margin-bottom:8px;display:flex;align-items:center;gap:10px;">
+            <i class="fas fa-key" style="color:var(--violet)"></i>Venice AI API Key
+          </h2>
 
-        <p id="api-key-modal-message" class="text-red-400 text-sm mb-2 min-h-[1.25rem]"></p>
+          <p style="font-family:var(--font-mono);font-size:12px;color:var(--text-secondary);margin-bottom:20px;line-height:1.7;">
+            This app uses the <strong style="color:var(--text-primary);">Venice AI API</strong> to generate images.
+            Your key is saved only in your browser — never sent elsewhere.
+          </p>
 
-        <label class="input-label mb-1" for="api-key-input">
-          <i class="fas fa-lock text-neon-pink mr-1"></i>Your Venice AI API Key
-        </label>
-        <input
-          type="password"
-          id="api-key-input"
-          placeholder="Paste your API key here..."
-          autocomplete="off"
-          class="input-text w-full mb-4"
-          style="font-family:monospace;"
-        >
+          <div class="api-key-instructions">
+            <p><i class="fas fa-info-circle" style="margin-right:6px;"></i>How to get your key:</p>
+            <ol>
+              <li>Go to <strong>venice.ai</strong> and create a free account</li>
+              <li>Navigate to <strong>Settings → API</strong></li>
+              <li>Click <strong>Generate API Key</strong> and copy it</li>
+              <li>Paste it below and click <strong>Save &amp; Start</strong></li>
+            </ol>
+          </div>
 
-        <div class="text-xs text-medium mb-4">
-          <i class="fas fa-shield-alt text-neon-green mr-1"></i>
-          Your key is stored only in your browser's <code>localStorage</code> and is never transmitted to any third party.
-        </div>
+          <p id="api-key-modal-message" style="color:#EF4444;font-family:var(--font-mono);font-size:12px;min-height:20px;margin-bottom:10px;"></p>
 
-        <div class="flex justify-center">
-          <button id="save-api-key-btn" class="action-button">
-            <i class="fas fa-check mr-2"></i>Save &amp; Start
-          </button>
+          <label class="input-label" style="margin-bottom:8px;">
+            <i class="fas fa-lock"></i>Your API Key
+          </label>
+          <input type="password"
+                 id="api-key-input"
+                 placeholder="Paste your Venice AI API key…"
+                 autocomplete="off"
+                 class="input-text w-full mb-4"
+                 style="font-family:var(--font-mono);margin-bottom:16px;">
+
+          <div class="api-privacy-note">
+            <i class="fas fa-shield-alt"></i>
+            Stored only in your browser's <code>localStorage</code>. Never transmitted.
+          </div>
+
+          <div style="display:flex;justify-content:center;">
+            <button id="save-api-key-btn" class="action-button">
+              <i class="fas fa-check"></i>Save &amp; Start
+            </button>
+          </div>
+
         </div>
       </div>
     </div>
   </div>
 
+
+  <!-- ╔══════════════════════════════════════════════════════╗
+       ║  PROCEDURAL BACKGROUND ANIMATION                   ║
+       ╚══════════════════════════════════════════════════════╝ -->
+  <script>
+  (function initCanvas() {
+    const canvas = document.getElementById('bg-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let t = 0;
+
+    function resize() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+
+    /* Brand colors as RGB triples */
+    const P = [
+      [99,  102, 241],  /* violet  */
+      [139,  92, 246],  /* purple  */
+      [236,  72, 153],  /* pink    */
+      [6,   182, 212],  /* cyan    */
+      [16,  185, 129],  /* emerald */
+    ];
+
+    /* Lissajous curve parameters */
+    const CURVES = [
+      { a: 3, b: 2, delta: 0,               col: P[0], alpha: 0.07 },
+      { a: 5, b: 4, delta: Math.PI / 4,     col: P[1], alpha: 0.05 },
+      { a: 2, b: 3, delta: Math.PI / 6,     col: P[2], alpha: 0.05 },
+      { a: 7, b: 6, delta: Math.PI / 3,     col: P[3], alpha: 0.04 },
+    ];
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const W = canvas.width;
+      const H = canvas.height;
+
+      /* ── Subtle math grid ── */
+      ctx.lineWidth   = 0.5;
+      ctx.strokeStyle = 'rgba(99,102,241,0.045)';
+      const GS = 55;
+      for (let x = 0; x <= W; x += GS) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      }
+      for (let y = 0; y <= H; y += GS) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      }
+
+      /* ── Slightly brighter accent grid (every 5th line) ── */
+      ctx.strokeStyle = 'rgba(99,102,241,0.09)';
+      for (let x = 0; x <= W; x += GS * 5) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      }
+      for (let y = 0; y <= H; y += GS * 5) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      }
+
+      /* ── Lissajous curves ── */
+      const cx = W * 0.5;
+      const cy = H * 0.46;
+      const rx = Math.min(W, H) * 0.33;
+      const ry = Math.min(W, H) * 0.25;
+      const drift = t * 0.00025;
+
+      CURVES.forEach(({ a, b, delta, col, alpha }) => {
+        ctx.beginPath();
+        ctx.strokeStyle = `rgba(${col[0]},${col[1]},${col[2]},${alpha})`;
+        ctx.lineWidth   = 1;
+        const STEPS = 420;
+        for (let i = 0; i <= STEPS; i++) {
+          const θ = (i / STEPS) * Math.PI * 2;
+          const x = cx + rx * Math.sin(a * θ + delta + drift);
+          const y = cy + ry * Math.sin(b * θ);
+          i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      });
+
+      /* ── Parametric particles ── */
+      const N = 10;
+      for (let i = 0; i < N; i++) {
+        const phase  = (i / N) * Math.PI * 2;
+        const speed  = 0.0006 + i * 0.00004;
+        const θ      = t * speed + phase;
+        const col    = P[i % P.length];
+
+        /* Follow the first Lissajous curve with slight offset */
+        const x = cx + rx * Math.sin(3 * θ + drift);
+        const y = cy + ry * Math.sin(2 * θ);
+        const a = 0.25 + 0.2 * Math.sin(t * 0.004 + phase);
+        const r = 1.8 + 1.2 * Math.abs(Math.sin(t * 0.003 + phase));
+
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${a})`;
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      /* ── Radial gradient glow in center ── */
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(W, H) * 0.45);
+      grad.addColorStop(0,   'rgba(99,102,241,0.03)');
+      grad.addColorStop(0.5, 'rgba(139,92,246,0.015)');
+      grad.addColorStop(1,   'transparent');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H);
+
+      t++;
+      requestAnimationFrame(draw);
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+    draw();
+  })();
+  </script>
+
+
+  <!-- ╔══════════════════════════════════════════════════════╗
+       ║  SIDEBAR NAVIGATION ENHANCEMENTS                   ║
+       ╚══════════════════════════════════════════════════════╝ -->
+  <script>
+  document.addEventListener('DOMContentLoaded', function () {
+
+    /* ── Page title / subtitle sync with sidebar tabs ── */
+    const navItems = document.querySelectorAll('.nav-item[data-page-title]');
+    navItems.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        const title = btn.getAttribute('data-page-title');
+        const sub   = btn.getAttribute('data-page-sub');
+        const titleEl = document.getElementById('page-title');
+        const subEl   = document.getElementById('page-subtitle');
+        if (titleEl) titleEl.textContent = title || '';
+        if (subEl)   subEl.textContent   = sub   || '';
+      });
+    });
+
+    /* ── Model count badge in compare panel ── */
+    function updateModelCount() {
+      const countEl = document.getElementById('model-count');
+      if (!countEl) return;
+      const sel = document.getElementById('model');
+      if (sel && sel.options.length > 0) {
+        countEl.textContent = sel.options.length;
+      } else {
+        setTimeout(updateModelCount, 600);
+      }
+    }
+    setTimeout(updateModelCount, 800);
+
+    /* ── Websearch progress bar uses compare-progress-fill class ── */
+    /* The websearch-progress-bar already has inline width:0% */
+
+  });
+  </script>
+
+
+  <!-- Main app logic -->
   <script src="app.js"></script>
+
 </body>
-</html> 
+</html>
