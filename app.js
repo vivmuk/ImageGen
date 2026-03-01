@@ -333,6 +333,8 @@ class VeniceImageGenerator {
     this.generatedImages = [];
     this.progressInterval = null;
     this.startTime = null;
+    this.currentSlideIndex = 0;
+    this.reelAutoPlayInterval = null;
     this.initializeApp();
   }
 
@@ -649,6 +651,32 @@ class VeniceImageGenerator {
 
     if (websearchGenerateButton) {
       websearchGenerateButton.addEventListener('click', this.handleWebSearchGenerate.bind(this));
+    }
+
+    // Gallery controls
+    const gridBtn = document.getElementById('gallery-view-grid');
+    const reelBtn = document.getElementById('gallery-view-reel');
+    const downloadAllBtn = document.getElementById('download-all-btn');
+    const reelPrev = document.getElementById('reel-prev');
+    const reelNext = document.getElementById('reel-next');
+    const reelAutoplayBtn = document.getElementById('reel-autoplay-btn');
+    const reelDownloadCurrent = document.getElementById('reel-download-current');
+
+    if (gridBtn) gridBtn.addEventListener('click', () => this.showGridView());
+    if (reelBtn) reelBtn.addEventListener('click', () => this.showReelView());
+    if (downloadAllBtn) downloadAllBtn.addEventListener('click', () => this.handleDownloadAll());
+    if (reelPrev) reelPrev.addEventListener('click', () => this.prevSlide());
+    if (reelNext) reelNext.addEventListener('click', () => this.nextSlide());
+    if (reelAutoplayBtn) reelAutoplayBtn.addEventListener('click', () => this.toggleAutoPlay());
+    if (reelDownloadCurrent) {
+      reelDownloadCurrent.addEventListener('click', () => {
+        const img = this.generatedImages[this.currentSlideIndex];
+        if (!img) return;
+        const link = document.createElement('a');
+        link.href = img.src;
+        link.download = `vgen-${this.currentSlideIndex + 1}.png`;
+        link.click();
+      });
     }
   }
 
@@ -1128,15 +1156,14 @@ class VeniceImageGenerator {
   updateGallery() {
     const galleryContainer = document.getElementById('image-gallery');
     if (!galleryContainer) return;
-    
-    // Clear current gallery
+
     galleryContainer.innerHTML = '';
-    
-    // Add each image to gallery
+
     this.generatedImages.forEach((image, index) => {
       const galleryItem = document.createElement('div');
       galleryItem.className = 'gallery-item';
-      
+      galleryItem.style.cursor = 'pointer';
+
       galleryItem.innerHTML = `
         <div class="gallery-image-container">
           <img src="${image.src}" alt="Generated image ${index + 1}" class="gallery-img">
@@ -1150,9 +1177,197 @@ class VeniceImageGenerator {
           </div>
         </div>
       `;
-      
+
+      galleryItem.addEventListener('click', () => {
+        this.currentSlideIndex = index;
+        this.showReelView();
+      });
+
       galleryContainer.appendChild(galleryItem);
     });
+
+    // Keep reel in sync if it's visible
+    const reel = document.getElementById('slide-reel');
+    if (reel && !reel.classList.contains('hidden')) {
+      this.updateReel();
+    }
+  }
+
+  showGridView() {
+    document.getElementById('image-gallery').classList.remove('hidden');
+    document.getElementById('slide-reel').classList.add('hidden');
+    document.getElementById('gallery-view-grid').classList.add('active');
+    document.getElementById('gallery-view-reel').classList.remove('active');
+    this.stopAutoPlay();
+  }
+
+  showReelView() {
+    document.getElementById('image-gallery').classList.add('hidden');
+    document.getElementById('slide-reel').classList.remove('hidden');
+    document.getElementById('gallery-view-grid').classList.remove('active');
+    document.getElementById('gallery-view-reel').classList.add('active');
+    this.updateReel();
+  }
+
+  updateReel() {
+    const images = this.generatedImages;
+    if (!images.length) return;
+
+    // Clamp index
+    this.currentSlideIndex = Math.max(0, Math.min(this.currentSlideIndex, images.length - 1));
+    const img = images[this.currentSlideIndex];
+
+    // Featured image (fade transition)
+    const featuredImg = document.getElementById('reel-featured-img');
+    if (featuredImg) {
+      featuredImg.classList.add('fading');
+      setTimeout(() => {
+        featuredImg.src = img.src;
+        featuredImg.classList.remove('fading');
+      }, 140);
+    }
+
+    // Prompt + tags
+    const promptEl = document.getElementById('reel-featured-prompt');
+    if (promptEl) promptEl.textContent = img.prompt.slice(0, 120) + (img.prompt.length > 120 ? '…' : '');
+
+    const tagsEl = document.getElementById('reel-featured-tags');
+    if (tagsEl) {
+      tagsEl.innerHTML = `
+        <span style="color:var(--cyan)">${img.model}</span>
+        <span style="color:var(--pink)">${img.style}</span>
+        <span style="color:var(--emerald)">${img.width}×${img.height}</span>
+      `;
+    }
+
+    // Counter
+    const counter = document.getElementById('reel-counter');
+    if (counter) counter.textContent = `${this.currentSlideIndex + 1} / ${images.length}`;
+
+    // Nav buttons
+    const prevBtn = document.getElementById('reel-prev');
+    const nextBtn = document.getElementById('reel-next');
+    if (prevBtn) prevBtn.disabled = this.currentSlideIndex === 0;
+    if (nextBtn) nextBtn.disabled = this.currentSlideIndex === images.length - 1;
+
+    // Filmstrip
+    const filmstrip = document.getElementById('reel-filmstrip');
+    if (filmstrip) {
+      // Rebuild only if count changed, otherwise just update active class
+      if (filmstrip.children.length !== images.length) {
+        filmstrip.innerHTML = '';
+        images.forEach((im, i) => {
+          const thumb = document.createElement('div');
+          thumb.className = 'filmstrip-thumb' + (i === this.currentSlideIndex ? ' active' : '');
+          thumb.innerHTML = `<img src="${im.src}" alt="Thumbnail ${i + 1}">`;
+          thumb.addEventListener('click', () => {
+            this.currentSlideIndex = i;
+            this.updateReel();
+          });
+          filmstrip.appendChild(thumb);
+        });
+      } else {
+        Array.from(filmstrip.children).forEach((thumb, i) => {
+          thumb.classList.toggle('active', i === this.currentSlideIndex);
+        });
+      }
+
+      // Scroll active thumb into view
+      const activeThumb = filmstrip.children[this.currentSlideIndex];
+      if (activeThumb) {
+        activeThumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+  }
+
+  nextSlide() {
+    if (this.currentSlideIndex < this.generatedImages.length - 1) {
+      this.currentSlideIndex++;
+      this.updateReel();
+    }
+  }
+
+  prevSlide() {
+    if (this.currentSlideIndex > 0) {
+      this.currentSlideIndex--;
+      this.updateReel();
+    }
+  }
+
+  toggleAutoPlay() {
+    if (this.reelAutoPlayInterval) {
+      this.stopAutoPlay();
+    } else {
+      this.startAutoPlay();
+    }
+  }
+
+  startAutoPlay() {
+    const btn = document.getElementById('reel-autoplay-btn');
+    if (btn) {
+      btn.innerHTML = '<i class="fas fa-pause"></i> Pause';
+      btn.classList.add('playing');
+    }
+    this.reelAutoPlayInterval = setInterval(() => {
+      if (this.currentSlideIndex < this.generatedImages.length - 1) {
+        this.currentSlideIndex++;
+      } else {
+        this.currentSlideIndex = 0; // loop
+      }
+      this.updateReel();
+    }, 3000);
+  }
+
+  stopAutoPlay() {
+    if (this.reelAutoPlayInterval) {
+      clearInterval(this.reelAutoPlayInterval);
+      this.reelAutoPlayInterval = null;
+    }
+    const btn = document.getElementById('reel-autoplay-btn');
+    if (btn) {
+      btn.innerHTML = '<i class="fas fa-play"></i> Auto-play';
+      btn.classList.remove('playing');
+    }
+  }
+
+  async handleDownloadAll() {
+    const images = this.generatedImages;
+    if (!images.length) {
+      alert('No images in gallery yet. Save some images first!');
+      return;
+    }
+
+    const btn = document.getElementById('download-all-btn');
+    if (btn) {
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Zipping…';
+      btn.disabled = true;
+    }
+
+    try {
+      const zip = new JSZip();
+      images.forEach((img, i) => {
+        // Strip the data:image/...;base64, prefix
+        const base64 = img.src.replace(/^data:image\/\w+;base64,/, '');
+        const ext = img.src.startsWith('data:image/png') ? 'png' : 'jpg';
+        zip.file(`vgen-image-${String(i + 1).padStart(3, '0')}.${ext}`, base64, { base64: true });
+      });
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `vgen-gallery-${images.length}-images.zip`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Download all failed:', err);
+      alert('Failed to create zip. Please try downloading images individually.');
+    } finally {
+      if (btn) {
+        btn.innerHTML = '<i class="fas fa-file-archive"></i> Download All';
+        btn.disabled = false;
+      }
+    }
   }
   
   async handleWebSearchGenerate(event) {

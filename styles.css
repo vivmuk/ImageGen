@@ -1002,6 +1002,260 @@ label, button, .nav-text, .input-label,
 
 .gallery-item:hover .gallery-img { transform: scale(1.04); }
 
+/* ── GALLERY HEADER & TOOLBAR ───────────────────────────────── */
+.gallery-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.gallery-title {
+  font-family: var(--font-head);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.gallery-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.view-toggle-group {
+  display: flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  gap: 2px;
+}
+
+.view-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-head);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+}
+
+.view-toggle-btn:hover {
+  color: var(--text-primary);
+}
+
+.view-toggle-btn.active {
+  background: var(--violet);
+  color: #fff;
+  box-shadow: 0 0 10px var(--violet-glow);
+}
+
+/* ── SLIDE REEL ─────────────────────────────────────────────── */
+.slide-reel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.reel-stage {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+
+.reel-featured-wrap {
+  flex: 1;
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  min-height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reel-featured-img {
+  width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+  display: block;
+  transition: opacity 0.28s ease;
+}
+
+.reel-featured-img.fading {
+  opacity: 0;
+}
+
+.reel-featured-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(12, 12, 20, 0.92));
+  padding: 24px 20px 16px;
+}
+
+.reel-featured-prompt {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.reel-featured-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.reel-featured-tags span {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: rgba(99, 102, 241, 0.2);
+  border: 1px solid var(--border-subtle);
+}
+
+.reel-nav {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border-medium);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
+}
+
+.reel-nav:hover {
+  background: var(--violet);
+  border-color: var(--violet);
+  box-shadow: var(--glow-violet);
+}
+
+.reel-nav:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.reel-controls-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.reel-autoplay-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-medium);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-family: var(--font-head);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
+}
+
+.reel-autoplay-btn:hover,
+.reel-autoplay-btn.playing {
+  background: var(--emerald);
+  border-color: var(--emerald);
+  color: #fff;
+  box-shadow: 0 0 14px var(--emerald-glow);
+}
+
+.reel-counter {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-left: auto;
+}
+
+/* ── FILMSTRIP ──────────────────────────────────────────────── */
+.reel-filmstrip-wrap {
+  overflow-x: auto;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--violet-dim) transparent;
+}
+
+.reel-filmstrip-wrap::-webkit-scrollbar {
+  height: 4px;
+}
+
+.reel-filmstrip-wrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.reel-filmstrip-wrap::-webkit-scrollbar-thumb {
+  background: var(--violet-dim);
+  border-radius: 4px;
+}
+
+.reel-filmstrip {
+  display: flex;
+  gap: 8px;
+  padding: 4px 2px;
+  width: max-content;
+}
+
+.filmstrip-thumb {
+  width: 80px;
+  height: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid var(--border-subtle);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
+}
+
+.filmstrip-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.filmstrip-thumb:hover {
+  border-color: var(--border-medium);
+  transform: translateY(-2px);
+}
+
+.filmstrip-thumb.active {
+  border-color: var(--violet);
+  box-shadow: 0 0 10px var(--violet-glow);
+  transform: translateY(-3px);
+}
+
 /* ── FOOTER ─────────────────────────────────────────────────── */
 footer {
   padding: 20px 32px;

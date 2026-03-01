@@ -696,12 +696,64 @@
 
         <!-- ── GALLERY ───────────────────────────────────── -->
         <div id="gallery-section" class="mt-12 hidden">
-          <h2 style="font-family:var(--font-head);font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:16px;display:flex;align-items:center;gap:10px;">
-            <i class="fas fa-images" style="color:var(--pink);"></i>Your Gallery
-          </h2>
+
+          <div class="gallery-header">
+            <h2 class="gallery-title">
+              <i class="fas fa-images" style="color:var(--pink);"></i>Your Gallery
+            </h2>
+            <div class="gallery-toolbar">
+              <div class="view-toggle-group">
+                <button id="gallery-view-grid" class="view-toggle-btn active" title="Grid view">
+                  <i class="fas fa-th"></i><span>Grid</span>
+                </button>
+                <button id="gallery-view-reel" class="view-toggle-btn" title="Slide reel">
+                  <i class="fas fa-film"></i><span>Reel</span>
+                </button>
+              </div>
+              <button id="download-all-btn" class="action-button-sm">
+                <i class="fas fa-file-archive"></i>Download All
+              </button>
+            </div>
+          </div>
+
+          <!-- Grid view -->
           <div id="image-gallery" class="grid-gallery">
             <!-- Gallery images added by JS -->
           </div>
+
+          <!-- Slide Reel view -->
+          <div id="slide-reel" class="slide-reel hidden">
+            <div class="reel-stage">
+              <button id="reel-prev" class="reel-nav reel-nav-left">
+                <i class="fas fa-chevron-left"></i>
+              </button>
+              <div class="reel-featured-wrap">
+                <img id="reel-featured-img" src="" alt="Featured image" class="reel-featured-img">
+                <div class="reel-featured-overlay">
+                  <p id="reel-featured-prompt" class="reel-featured-prompt"></p>
+                  <div id="reel-featured-tags" class="reel-featured-tags"></div>
+                </div>
+              </div>
+              <button id="reel-next" class="reel-nav reel-nav-right">
+                <i class="fas fa-chevron-right"></i>
+              </button>
+            </div>
+            <div class="reel-controls-bar">
+              <button id="reel-autoplay-btn" class="reel-autoplay-btn">
+                <i class="fas fa-play"></i> Auto-play
+              </button>
+              <span id="reel-counter" class="reel-counter">1 / 1</span>
+              <button id="reel-download-current" class="action-button-sm" style="font-size:11px;">
+                <i class="fas fa-download"></i> Save
+              </button>
+            </div>
+            <div class="reel-filmstrip-wrap">
+              <div id="reel-filmstrip" class="reel-filmstrip">
+                <!-- thumbnails added by JS -->
+              </div>
+            </div>
+          </div>
+
         </div>
 
       </div><!-- /app -->
@@ -960,6 +1012,9 @@
   });
   </script>
 
+
+  <!-- JSZip for download-all zip -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
   <!-- Main app logic -->
   <script src="app.js"></script>
