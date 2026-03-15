@@ -1687,6 +1687,7 @@ body.comparison-mode .control-panel { max-width: 100%; }
   opacity: 0;
   transition: opacity 0.2s;
   letter-spacing: 0.5px;
+  pointer-events: none;
 }
 
 .comparison-card:hover .comparison-image-container::after { opacity: 1; }
