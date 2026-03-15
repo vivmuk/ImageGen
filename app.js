@@ -1924,7 +1924,7 @@ class VeniceImageGenerator {
         gridItem.innerHTML = `
           <div class="comparison-image-container">
             <img src="${result.image.src}" alt="${result.model.name}" class="comparison-image"
-                 onclick="openImageModal('${result.image.src}', '${result.model.name}', '${result.image.width}', '${result.image.height}', '${result.image.steps}', '${result.image.style}', '${generationTime}', '${safeMode}', '${cost.toFixed(4)}')">
+                 onclick="openImageModal('${result.image.src}', '${result.model.name}', '${result.model.id}', '${result.image.width}', '${result.image.height}', '${result.image.steps}', '${result.image.style}', '${generationTime}', '${safeMode}', '${cost.toFixed(4)}')">
           </div>
           <div class="comparison-card-content">
             <h3 class="comparison-model-name">${result.model.name}</h3>
