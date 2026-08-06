@@ -52,18 +52,37 @@ To change your key at any time, click the **Set API Key** button at the top of t
 
 ## Models Available
 
-- Fluently-XL-Final
-- FLUX.1-dev
-- FLUX.1-dev (uncensored)
-- Pony-Realism
-- Stable-Diffusion-3.5-Large
-- Lustify-SDXL-NSFW-Checkpoint
+The model list is **not hardcoded**. On launch the app calls
+`GET /models?type=image` and populates every dropdown from the live catalog,
+dropping any model marked `offline`. New Venice models appear automatically; a
+built-in fallback list is used only when that request fails.
+
+## How Requests Are Built
+
+Venice image models do not all take the same request shape, so every call is
+assembled from the model's own `model_spec` rather than from a fixed template
+(see `buildImagePayload` in `app.js`):
+
+| Model signal | Effect on the request |
+| --- | --- |
+| `constraints.aspectRatios` | Sends `aspect_ratio` (snapped to a supported value) instead of `width`/`height` |
+| `constraints.resolutions` | Sends a `resolution` tier (`1K`/`2K`/`4K`) mapped from the UI's low→ultra selector |
+| `constraints.widthHeightDivisor` | Rounds `width`/`height` to a legal multiple, capped at Venice's 1280px limit |
+| `constraints.steps` | Clamps `steps` to the model's max; models without it get no `steps` or `cfg_scale` |
+| `constraints.promptCharacterLimit` | Truncates the prompt and negative prompt |
+| `capabilities.supportsWebSearch` | Only these models receive `enable_web_search`, and only they appear in the Web-Enhanced tab |
+| `pricing.generation` / `pricing.resolutions` | Cost estimates handle both flat and per-tier pricing |
+
+The prompt optimizer resolves its text model from
+`GET /models/traits?type=text` instead of pinning a model ID.
 
 ## Technical Details
 
 - Built with vanilla JavaScript (no frameworks required)
 - Styled with Tailwind CSS
-- Uses the Venice AI API for image generation
+- Uses the Venice AI API for image generation ([API docs](https://github.com/veniceai/api-docs))
+- All API traffic goes through one `veniceFetch` helper (auth, CORS-proxy
+  fallback, and error normalisation in a single place)
 - Stores images locally (no server-side storage)
 - Responsive design works on desktop and mobile devices
 - API key stored securely in browser `localStorage`

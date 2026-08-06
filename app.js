@@ -14,10 +14,78 @@ function hasApiKey() {
   return key && key.trim().length > 0;
 }
 
+// ---------------------------------------------------------------------------
+// Venice API transport
+// ---------------------------------------------------------------------------
+
+const VENICE_API_BASE = 'https://api.venice.ai/api/v1';
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+
+// Venice caps image width/height at 1280px per side on /image/generate.
+const MAX_IMAGE_DIMENSION = 1280;
+
+// Single entry point for every Venice call: attaches auth, falls back to the
+// CORS proxy when the browser blocks the direct request, and normalises the
+// error shape (Venice returns `error` as either a string or {message}).
+async function veniceFetch(path, options = {}) {
+  const { method = 'GET', body = null } = options;
+  const url = `${VENICE_API_BASE}${path}`;
+
+  const headers = {
+    'Authorization': `Bearer ${getApiKey()}`,
+    'Content-Type': 'application/json'
+  };
+
+  const init = { method, headers };
+  if (body !== null) init.body = JSON.stringify(body);
+
+  let response;
+  try {
+    response = await fetch(url, init);
+  } catch (directError) {
+    console.log(`Direct call to ${path} failed (${directError.message}), trying CORS proxy`);
+    response = await fetch(CORS_PROXY + encodeURIComponent(url), {
+      ...init,
+      headers: { ...headers, 'X-Requested-With': 'XMLHttpRequest' }
+    });
+  }
+
+  // Errors can come back as JSON or as plain text (proxy/gateway responses).
+  const raw = await response.text();
+  let result;
+  try {
+    result = raw ? JSON.parse(raw) : {};
+  } catch (parseError) {
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${raw.slice(0, 200)}`);
+    throw new Error('Venice returned a malformed response');
+  }
+
+  if (!response.ok) {
+    const detail =
+      result.error?.message ||
+      (typeof result.error === 'string' ? result.error : null) ||
+      result.message ||
+      result.details ||
+      `HTTP ${response.status}`;
+    const error = new Error(detail);
+    error.status = response.status;
+    error.body = result;
+    throw error;
+  }
+
+  return result;
+}
+
 // Model options from Venice AI (will be populated dynamically)
 let MODELS = [];
 
-// Fallback models when API fails
+// Text model used by the prompt optimizer. Resolved at boot from
+// /models/traits?type=text; this ID is only the last-resort fallback.
+const FALLBACK_TEXT_MODEL = 'grok-41-fast';
+let TEXT_MODEL_ID = null;
+
+// Fallback models when the catalog request fails. Best-effort only - the live
+// GET /models?type=image response is always authoritative when it succeeds.
 const FALLBACK_MODELS = [
   {
     id: "venice-sd35",
@@ -71,14 +139,17 @@ const FALLBACK_MODELS = [
       generation: { usd: 0.09 }
     }
   },
+  // The three models below size by aspect ratio, not width/height, and take no
+  // diffusion steps - hence no `steps` / `widthHeightDivisor` entries.
   {
     id: "gpt-image-1-5",
     name: "GPT Image 1.5",
     traits: [],
+    capabilities: { supportsWebSearch: true },
     constraints: {
       promptCharacterLimit: 32768,
-      steps: { default: 20, max: 50 },
-      widthHeightDivisor: 1
+      aspectRatios: ["1:1", "16:9", "9:16"],
+      defaultAspectRatio: "1:1"
     },
     pricing: {
       generation: { usd: 0.23 }
@@ -88,10 +159,13 @@ const FALLBACK_MODELS = [
     id: "nano-banana-pro",
     name: "Nano Banana Pro",
     traits: [],
+    capabilities: { supportsWebSearch: true },
     constraints: {
       promptCharacterLimit: 32768,
-      steps: { default: 20, max: 50 },
-      widthHeightDivisor: 1
+      aspectRatios: ["1:1", "16:9", "9:16"],
+      defaultAspectRatio: "1:1",
+      resolutions: ["1K", "2K", "4K"],
+      defaultResolution: "2K"
     },
     pricing: {
       generation: { usd: 0.18 }
@@ -103,8 +177,8 @@ const FALLBACK_MODELS = [
     traits: [],
     constraints: {
       promptCharacterLimit: 1500,
-      steps: { default: 20, max: 50 },
-      widthHeightDivisor: 1
+      aspectRatios: ["1:1", "16:9", "9:16", "4:3", "3:4"],
+      defaultAspectRatio: "1:1"
     },
     pricing: {
       generation: { usd: 0.05 }
@@ -177,50 +251,34 @@ const FALLBACK_MODELS = [
   }
 ];
 
+// Normalise one /models entry. Keeping `capabilities` is what lets the app
+// decide per model which request fields are legal — never hardcode model IDs.
+function normalizeModel(entry) {
+  const spec = entry.model_spec || {};
+  return {
+    id: entry.id,
+    name: spec.name || entry.id,
+    description: spec.description || '',
+    traits: spec.traits || [],
+    capabilities: spec.capabilities || {},
+    constraints: spec.constraints || {},
+    pricing: spec.pricing || {},
+    beta: Boolean(spec.beta || spec.betaModel),
+    offline: Boolean(spec.offline)
+  };
+}
+
 // Function to fetch available models from Venice AI API
 async function fetchModels() {
   try {
-    // Try direct API call first
-    let response;
-    try {
-      response = await fetch('https://api.venice.ai/api/v1/models?type=image', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${getApiKey()}`,
-          'Content-Type': 'application/json'
-        }
-      });
-    } catch (directError) {
-      console.log('Direct API failed, trying CORS proxy');
-      // Use CORS proxy as fallback
-      const proxyUrl = 'https://api.allorigins.win/raw?url=';
-      const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/models?type=image');
-      response = await fetch(proxyUrl + targetUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${getApiKey()}`,
-          'Content-Type': 'application/json',
-          'X-Requested-With': 'XMLHttpRequest'
-        }
-      });
-    }
+    const data = await veniceFetch('/models?type=image');
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+    // The catalog is `{ object: "list", data: [...] }`; tolerate a bare array.
+    const entries = Array.isArray(data) ? data : (data.data || []);
+    if (!entries.length) throw new Error('Model catalog came back empty');
 
-    const data = await response.json();
-    
-    // Filter out offline models and transform the API response to our format
-    MODELS = data.data
-      .filter(model => !model.model_spec?.offline)
-      .map(model => ({
-        id: model.id,
-        name: model.model_spec?.name || model.id,
-        traits: model.model_spec?.traits || [],
-        constraints: model.model_spec?.constraints || {},
-        pricing: model.model_spec?.pricing || {}
-      }));
+    // Offline models are listed but cannot serve requests - treat as absent.
+    MODELS = entries.map(normalizeModel).filter(model => !model.offline);
 
     console.log('Fetched models:', MODELS);
     return MODELS;
@@ -231,6 +289,279 @@ async function fetchModels() {
     MODELS = FALLBACK_MODELS;
     return FALLBACK_MODELS;
   }
+}
+
+// Resolve the text model used by the prompt optimizer from /models/traits so
+// we never ship a stale hardcoded ID.
+async function fetchTextModel() {
+  try {
+    const traits = await veniceFetch('/models/traits?type=text');
+    const map = traits.data || {};
+    TEXT_MODEL_ID = map.fastest || map.default || map.most_intelligent || null;
+  } catch (error) {
+    console.warn('Could not resolve a text model from traits:', error.message);
+  }
+
+  if (!TEXT_MODEL_ID) {
+    try {
+      const list = await veniceFetch('/models?type=text');
+      const entries = (Array.isArray(list) ? list : (list.data || []))
+        .map(normalizeModel)
+        .filter(model => !model.offline && !model.beta);
+      if (entries.length) TEXT_MODEL_ID = entries[0].id;
+    } catch (error) {
+      console.warn('Could not list text models:', error.message);
+    }
+  }
+
+  if (!TEXT_MODEL_ID) TEXT_MODEL_ID = FALLBACK_TEXT_MODEL;
+  console.log('Prompt optimizer model:', TEXT_MODEL_ID);
+  return TEXT_MODEL_ID;
+}
+
+// ---------------------------------------------------------------------------
+// Model capability probing
+//
+// Image models on Venice pick exactly one sizing idiom, and reject fields that
+// belong to a different one. Everything below reads the model's own
+// `model_spec` rather than matching on model IDs, so newly launched models work
+// without a code change.
+// ---------------------------------------------------------------------------
+
+// Models exposing constraints.aspectRatios size by ratio, not width/height.
+function usesAspectRatio(model) {
+  return Array.isArray(model?.constraints?.aspectRatios) &&
+         model.constraints.aspectRatios.length > 0;
+}
+
+// Models exposing constraints.resolutions take a "1K"/"2K"/"4K" tier.
+function usesResolutionTier(model) {
+  return Array.isArray(model?.constraints?.resolutions) &&
+         model.constraints.resolutions.length > 0;
+}
+
+// steps / cfg_scale are diffusion knobs. Ratio-sized models (Nano Banana,
+// GPT Image, Seedream) have no steps constraint and reject them.
+function usesDiffusionControls(model) {
+  return Boolean(model?.constraints?.steps) && !usesAspectRatio(model);
+}
+
+function supportsWebSearch(model) {
+  return Boolean(model?.capabilities?.supportsWebSearch);
+}
+
+function supportsNegativePrompt(model) {
+  if (model?.capabilities?.supportsNegativePrompt !== undefined) {
+    return Boolean(model.capabilities.supportsNegativePrompt);
+  }
+  // Not advertised explicitly: negative prompts are a diffusion-pipeline
+  // feature, so mirror the diffusion-controls check.
+  return usesDiffusionControls(model);
+}
+
+function supportsStylePreset(model) {
+  if (model?.capabilities?.supportsStylePreset !== undefined) {
+    return Boolean(model.capabilities.supportsStylePreset);
+  }
+  return usesDiffusionControls(model);
+}
+
+function supportsLoras(model) {
+  return Boolean(
+    model?.capabilities?.supportsLoras ||
+    model?.constraints?.loraStrength ||
+    (model?.traits || []).some(trait => String(trait).toLowerCase().includes('lora'))
+  );
+}
+
+// Snap a requested ratio to one the model actually accepts.
+function pickAspectRatio(model, requested) {
+  const supported = model.constraints.aspectRatios;
+  if (requested && supported.includes(requested)) return requested;
+
+  const ratioValue = (str) => {
+    const [w, h] = String(str).split(':').map(Number);
+    return (w && h) ? w / h : NaN;
+  };
+
+  const target = ratioValue(requested);
+  if (!Number.isFinite(target)) {
+    return model.constraints.defaultAspectRatio || supported[0];
+  }
+
+  return supported.reduce((best, candidate) => {
+    const delta = Math.abs(ratioValue(candidate) - target);
+    return delta < Math.abs(ratioValue(best) - target) ? candidate : best;
+  }, supported[0]);
+}
+
+// Map the UI's low/medium/high/ultra tiers onto the model's own tier names.
+const RESOLUTION_TIER_ORDER = ['low', 'medium', 'high', 'ultra'];
+
+function pickResolutionTier(model, requestedTier) {
+  const supported = model.constraints.resolutions;
+  if (supported.includes(requestedTier)) return requestedTier;
+
+  const index = Math.max(0, RESOLUTION_TIER_ORDER.indexOf(requestedTier));
+  const scaled = Math.round((index / (RESOLUTION_TIER_ORDER.length - 1)) * (supported.length - 1));
+  return supported[scaled] || model.constraints.defaultResolution || supported[0];
+}
+
+// Fit width/height inside Venice's 1280px cap while keeping the aspect ratio,
+// then snap both sides to the model's widthHeightDivisor.
+function fitDimensions(width, height, divisor) {
+  const step = divisor || 8;
+  let w = width;
+  let h = height;
+
+  const largest = Math.max(w, h);
+  if (largest > MAX_IMAGE_DIMENSION) {
+    const scale = MAX_IMAGE_DIMENSION / largest;
+    w = Math.floor(w * scale);
+    h = Math.floor(h * scale);
+  }
+
+  const snap = (value) => {
+    let snapped = Math.round(value / step) * step;
+    if (snapped > MAX_IMAGE_DIMENSION) snapped -= step;
+    return Math.max(step, snapped);
+  };
+
+  return { width: snap(w), height: snap(h) };
+}
+
+// Per-image price. Resolution-tiered models price per tier instead of flat.
+function getModelPrice(model, resolutionTier) {
+  const pricing = model?.pricing || {};
+  if (typeof pricing.generation?.usd === 'number') return pricing.generation.usd;
+
+  const tiers = pricing.resolutions;
+  if (tiers && typeof tiers === 'object') {
+    if (resolutionTier && typeof tiers[resolutionTier]?.usd === 'number') {
+      return tiers[resolutionTier].usd;
+    }
+    const values = Object.values(tiers)
+      .map(tier => tier?.usd)
+      .filter(usd => typeof usd === 'number');
+    if (values.length) return Math.min(...values);
+  }
+
+  return 0;
+}
+
+// Ratio-sized models never carry pixel dimensions - label them by ratio/tier.
+function formatSize(image) {
+  if (!image) return '-';
+  if (image.width && image.height) return `${image.width}×${image.height}`;
+  const parts = [image.aspectRatio, image.resolution].filter(Boolean);
+  return parts.length ? parts.join(' · ') : 'model default';
+}
+
+function truncateToLimit(text, limit) {
+  if (!text || !limit || text.length <= limit) return text;
+  console.warn(`Prompt truncated from ${text.length} to ${limit} characters`);
+  return text.slice(0, limit);
+}
+
+/**
+ * Build an /image/generate payload that only contains fields the given model
+ * accepts. This is the single place that decides how a model gets called.
+ *
+ * opts: { prompt, negativePrompt, style, width, height, aspectRatio,
+ *         resolutionTier, steps, cfgScale, seed, variants, format,
+ *         hideWatermark, embedMetadata, safeMode, loraStrength, webSearch }
+ */
+function buildImagePayload(model, opts = {}) {
+  const constraints = model.constraints || {};
+  const limit = constraints.promptCharacterLimit;
+
+  const payload = {
+    model: model.id,
+    prompt: truncateToLimit(opts.prompt, limit),
+    return_binary: false,
+    format: opts.format || 'webp'
+  };
+
+  // --- sizing: exactly one idiom per model ---------------------------------
+  if (usesAspectRatio(model)) {
+    payload.aspect_ratio = pickAspectRatio(model, opts.aspectRatio);
+    if (usesResolutionTier(model)) {
+      payload.resolution = pickResolutionTier(model, opts.resolutionTier);
+    }
+  } else {
+    const fitted = fitDimensions(
+      opts.width || 1024,
+      opts.height || 1024,
+      constraints.widthHeightDivisor
+    );
+    payload.width = fitted.width;
+    payload.height = fitted.height;
+    if (usesResolutionTier(model)) {
+      payload.resolution = pickResolutionTier(model, opts.resolutionTier);
+    }
+  }
+
+  // --- diffusion-only knobs ------------------------------------------------
+  if (usesDiffusionControls(model)) {
+    const maxSteps = constraints.steps.max || 50;
+    const requested = opts.steps || constraints.steps.default || 20;
+    payload.steps = Math.max(1, Math.min(requested, maxSteps));
+
+    if (typeof opts.cfgScale === 'number' && !Number.isNaN(opts.cfgScale)) {
+      payload.cfg_scale = Math.max(0.1, Math.min(opts.cfgScale, 20));
+    }
+  }
+
+  if (supportsStylePreset(model) && opts.style && opts.style !== 'None') {
+    payload.style_preset = opts.style;
+  }
+
+  if (supportsNegativePrompt(model) && opts.negativePrompt) {
+    payload.negative_prompt = truncateToLimit(opts.negativePrompt, limit);
+  }
+
+  if (supportsLoras(model) && typeof opts.loraStrength === 'number') {
+    payload.lora_strength = Math.max(0, Math.min(opts.loraStrength, 100));
+  }
+
+  // --- generic knobs -------------------------------------------------------
+  if (typeof opts.seed === 'number' && !Number.isNaN(opts.seed)) {
+    payload.seed = Math.max(-999999999, Math.min(opts.seed, 999999999));
+  }
+
+  // variants > 1 is only legal alongside return_binary: false.
+  const variants = Math.max(1, Math.min(opts.variants || 1, 4));
+  if (variants > 1) payload.variants = variants;
+
+  if (opts.hideWatermark !== undefined) payload.hide_watermark = Boolean(opts.hideWatermark);
+  if (opts.embedMetadata !== undefined) payload.embed_exif_metadata = Boolean(opts.embedMetadata);
+  if (opts.safeMode !== undefined) payload.safe_mode = Boolean(opts.safeMode);
+
+  // Only send enable_web_search to models that advertise it - it is billed
+  // extra and rejected by models without the capability.
+  if (opts.webSearch && supportsWebSearch(model)) payload.enable_web_search = true;
+
+  return payload;
+}
+
+// Pull every image out of a /image/generate response, whatever shape it uses.
+function extractImages(result) {
+  let images = [];
+
+  if (Array.isArray(result?.images)) {
+    images = result.images;
+  } else if (typeof result?.images === 'string') {
+    images = [result.images];
+  } else if (result?.image) {
+    images = [result.image];
+  } else if (Array.isArray(result?.data)) {
+    // OpenAI-compatible shape, in case the endpoint ever returns it.
+    images = result.data.map(item => item.b64_json || item.url).filter(Boolean);
+  }
+
+  return images
+    .filter(Boolean)
+    .map(image => image.startsWith('data:image') ? image : `data:image/webp;base64,${image}`);
 }
 
 // Style presets from Venice AI
@@ -344,19 +675,25 @@ class VeniceImageGenerator {
       showApiKeyModal();
       return;
     }
-    // Fetch models first, then setup DOM
+    // Fetch models first, then setup DOM. The text model for the prompt
+    // optimizer resolves in the background - it is not needed to render.
     await fetchModels();
+    fetchTextModel();
     this.setupDOM();
     this.setupTabs();
     this.addEventListeners();
   }
 
   setupDOM() {
-    // Populate model dropdown
+    // Populate model dropdown - default to whichever model Venice flags as
+    // "default" rather than a hardcoded ID that may have been retired.
     const modelSelect = document.getElementById('model');
     if (modelSelect) {
+      const defaultModel =
+        MODELS.find(m => (m.traits || []).includes('default')) || MODELS[0];
+
       modelSelect.innerHTML = MODELS.map(model =>
-        `<option value="${model.id}" ${model.id === "flux-dev" ? "selected" : ""}>${model.name}</option>`
+        `<option value="${model.id}" ${model.id === defaultModel?.id ? "selected" : ""}>${model.name}</option>`
       ).join('');
 
       // Add change listener for model capabilities
@@ -366,6 +703,27 @@ class VeniceImageGenerator {
 
       // Show initial model capabilities
       setTimeout(() => this.updateModelCapabilities(modelSelect.value), 100);
+    }
+
+    // Populate web search model dropdown from the capability flag, so newly
+    // launched web-search models show up without a code change.
+    const websearchModelSelect = document.getElementById('websearch-model');
+    if (websearchModelSelect) {
+      const webModels = MODELS.filter(supportsWebSearch);
+      if (webModels.length) {
+        websearchModelSelect.innerHTML = webModels.map(model => {
+          const price = getModelPrice(model);
+          // Tiered models have no single price - show the floor as "from".
+          const prefix = usesResolutionTier(model) ? 'from ' : '';
+          const label = price ? `${model.name} (${prefix}$${price.toFixed(2)})` : model.name;
+          return `<option value="${model.id}">${label}</option>`;
+        }).join('');
+        websearchModelSelect.disabled = false;
+      } else {
+        websearchModelSelect.innerHTML =
+          '<option value="">No web-search models available</option>';
+        websearchModelSelect.disabled = true;
+      }
     }
 
     // Populate style dropdown
@@ -412,12 +770,21 @@ class VeniceImageGenerator {
     document.getElementById('capabilities-model-name').textContent = model.name;
     document.getElementById('cap-prompt-limit').textContent =
       model.constraints?.promptCharacterLimit ? `${model.constraints.promptCharacterLimit} chars` : 'N/A';
+    // Ratio-sized models ignore steps and the width/height divisor entirely.
     document.getElementById('cap-max-steps').textContent =
-      model.constraints?.steps?.max || 'N/A';
+      usesDiffusionControls(model) ? (model.constraints.steps.max || 'N/A') : 'n/a';
     document.getElementById('cap-divisor').textContent =
-      model.constraints?.widthHeightDivisor || 'N/A';
+      usesAspectRatio(model)
+        ? (model.constraints.aspectRatios || []).join(', ')
+        : (model.constraints?.widthHeightDivisor || 'N/A');
+
+    // Price the tier the form is currently set to, not the cheapest one.
+    const tier = usesResolutionTier(model)
+      ? pickResolutionTier(model, document.getElementById('resolution')?.value || 'medium')
+      : undefined;
+    const price = getModelPrice(model, tier);
     document.getElementById('cap-cost').textContent =
-      model.pricing?.generation?.usd ? `$${model.pricing.generation.usd.toFixed(4)}` : 'N/A';
+      price ? `$${price.toFixed(4)}${tier ? ` / ${tier}` : ''}` : 'N/A';
 
     // Update traits
     const traitsContainer = document.getElementById('cap-traits');
@@ -490,6 +857,9 @@ class VeniceImageGenerator {
       
       resolutionSelect.addEventListener('change', () => {
         this.updateDimensions(aspectRatioSelect.value, resolutionSelect.value);
+        // Resolution-tiered models are priced per tier - refresh the estimate.
+        const modelSelect = document.getElementById('model');
+        if (modelSelect) this.updateModelCapabilities(modelSelect.value);
       });
     }
   }
@@ -499,7 +869,11 @@ class VeniceImageGenerator {
     const heightInput = document.getElementById('height');
     
     if (widthInput && heightInput) {
-      const dimensions = RESOLUTION_PRESETS[aspectRatio][resolution];
+      const preset = RESOLUTION_PRESETS[aspectRatio] || RESOLUTION_PRESETS['1:1'];
+      const raw = preset[resolution] || preset.medium;
+      // Presets go above Venice's 1280px cap at the ultra tier - fit them here
+      // so the form never shows a size the API would reject.
+      const dimensions = fitDimensions(raw.width, raw.height, 8);
       widthInput.value = dimensions.width;
       heightInput.value = dimensions.height;
       
@@ -783,29 +1157,12 @@ class VeniceImageGenerator {
         finalPrompt += `, with text "${bannerText}" displayed in a prominent red banner at the top of the image, white text, clear and readable font`;
       }
       
-      // Find the selected model to check its constraints
+      // Resolve the model spec so the payload only carries fields it accepts
       const selectedModel = MODELS.find(m => m.id === model);
-      const widthHeightDivisor = selectedModel?.constraints?.widthHeightDivisor || 8;
-      
-      // Ensure dimensions are divisible by the model's required divisor
-      const adjustedWidth = Math.round(width / widthHeightDivisor) * widthHeightDivisor;
-      const adjustedHeight = Math.round(height / widthHeightDivisor) * widthHeightDivisor;
-      
-      if (adjustedWidth !== width || adjustedHeight !== height) {
-        console.log(`Adjusted dimensions from ${width}x${height} to ${adjustedWidth}x${adjustedHeight} (divisible by ${widthHeightDivisor})`);
+      if (!selectedModel) {
+        throw new Error(`Model "${model}" is no longer available. Reload to refresh the model list.`);
       }
-      
-      // Clamp steps to the model's constraints
-      let adjustedSteps = steps;
-      if (selectedModel?.constraints?.steps) {
-        const minSteps = 1;
-        const maxSteps = selectedModel.constraints.steps.max || 50;
-        adjustedSteps = Math.max(minSteps, Math.min(steps, maxSteps));
-        if (adjustedSteps !== steps) {
-          console.log(`Adjusted steps from ${steps} to ${adjustedSteps} (max: ${maxSteps})`);
-        }
-      }
-      
+
       // Get advanced settings
       const cfgScale = parseFloat(document.getElementById('cfg-scale')?.value || '7.5');
       const loraStrength = parseInt(document.getElementById('lora-strength')?.value || '50');
@@ -815,116 +1172,60 @@ class VeniceImageGenerator {
       const format = document.getElementById('format')?.value || 'webp';
       const hideWatermark = document.getElementById('hide-watermark')?.checked ?? true;
       const embedMetadata = document.getElementById('embed-metadata')?.checked ?? false;
+      const ageVerification = document.getElementById('age-verification')?.checked ?? false;
+      const aspectRatio = document.getElementById('aspect-ratio')?.value || '1:1';
+      const resolutionTier = document.getElementById('resolution')?.value || 'medium';
 
-      const payload = {
-        model: model,
+      const payload = buildImagePayload(selectedModel, {
         prompt: finalPrompt,
-        height: adjustedHeight,
-        width: adjustedWidth,
-        steps: adjustedSteps,
-        return_binary: false,
-        hide_watermark: hideWatermark,
-        format: format,
-        cfg_scale: cfgScale,
+        negativePrompt: negativePrompt,
+        style: style,
+        width: width,
+        height: height,
+        aspectRatio: aspectRatio,
+        resolutionTier: resolutionTier,
+        steps: steps,
+        cfgScale: cfgScale,
         seed: seed,
-        embed_exif_metadata: embedMetadata,
         variants: variants,
-        lora_strength: loraStrength
-      };
+        format: format,
+        hideWatermark: hideWatermark,
+        embedMetadata: embedMetadata,
+        safeMode: !ageVerification,
+        loraStrength: loraStrength
+      });
 
-      // Add style_preset only if a style is selected (not "None")
-      if (style && style !== "None") {
-        payload.style_preset = style;
-      }
-
-      // Add negative prompt if provided
-      if (negativePrompt) {
-        payload.negative_prompt = negativePrompt;
-      }
-      
       console.log('Sending request with payload:', payload);
-      
-      // Try direct API call first, then fallback to proxy
-      let response;
-      try {
-        response = await fetch('https://api.venice.ai/api/v1/image/generate', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${getApiKey()}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        });
-      } catch (directError) {
-        console.log('Direct API failed, trying CORS proxy');
-        const proxyUrl = 'https://api.allorigins.win/raw?url=';
-        const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/image/generate');
-        response = await fetch(proxyUrl + targetUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${getApiKey()}`,
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-          },
-          body: JSON.stringify(payload)
-        });
-      }
-      
-      // Handle API response
-      const result = await response.json();
+
+      const result = await veniceFetch('/image/generate', { method: 'POST', body: payload });
       console.log('API response:', result);
-      
-      if (!response.ok) {
-        const errorMsg = result.error?.message || result.error || result.message || 'Failed to generate image';
-        console.error('API Error Details:', result);
-        throw new Error(errorMsg);
-      }
-      
+
       // Update progress indicator to complete
       this.stopProgressIndicator(true);
-      
-      // Extract the image data from the response
-      let imageData = null;
-      
-      // Check all possible response formats
-      if (result.images && Array.isArray(result.images) && result.images.length > 0) {
-        imageData = result.images[0];
-      } else if (result.image) {
-        imageData = result.image;
-      } else if (result.objectid) {
-        console.log('Image generated with objectid:', result.objectid);
-        // Try to find the image in the response structure
-        if (result.images) {
-          if (typeof result.images === 'string') {
-            imageData = result.images;
-          } else if (Array.isArray(result.images) && result.images.length > 0) {
-            imageData = result.images[0];
-          }
-        }
-      }
-      
+
+      const images = extractImages(result);
+      const imageData = images[0] || null;
+
       if (imageData) {
-        // Ensure the image data is properly formed for rendering
-        if (!imageData.startsWith('data:image')) {
-          imageData = 'data:image/png;base64,' + imageData;
-        }
-        
         const imageElement = document.getElementById('generated-image');
         if (imageElement) {
           imageElement.src = imageData;
-          
-          // Store current image
+
+          // Store current image - report what was actually sent, not what the
+          // form asked for, since the payload builder adapts to the model.
           this.currentImage = {
             src: imageData,
             prompt: prompt,
             model: model,
-            style: style === "None" ? "No preset" : style,
-            width: width,
-            height: height,
-            steps: steps,
+            style: payload.style_preset || 'No preset',
+            width: payload.width || null,
+            height: payload.height || null,
+            aspectRatio: payload.aspect_ratio || null,
+            resolution: payload.resolution || null,
+            steps: payload.steps ?? 'n/a',
             timestamp: new Date().toISOString()
           };
-          
+
           // Banner text is now part of the generated image, so we don't need to show a separate banner
           const bannerElement = document.getElementById('image-banner');
           if (bannerElement) {
@@ -936,9 +1237,9 @@ class VeniceImageGenerator {
           
           // Show result
           const placeholder = document.getElementById('placeholder');
-          const result = document.getElementById('result');
+          const resultPanel = document.getElementById('result');
           if (placeholder) placeholder.classList.add('hidden');
-          if (result) result.classList.remove('hidden');
+          if (resultPanel) resultPanel.classList.remove('hidden');
         }
       } else {
         console.error('Response structure:', result);
@@ -975,11 +1276,20 @@ class VeniceImageGenerator {
     }
     
     if (sizeElem) {
-      sizeElem.textContent = `${imageData.width}×${imageData.height}px`;
+      // Ratio-sized models never receive width/height, so report what applies.
+      if (imageData.width && imageData.height) {
+        sizeElem.textContent = `${imageData.width}×${imageData.height}px`;
+      } else if (imageData.aspectRatio) {
+        sizeElem.textContent = imageData.resolution
+          ? `${imageData.aspectRatio} · ${imageData.resolution}`
+          : imageData.aspectRatio;
+      } else {
+        sizeElem.textContent = 'model default';
+      }
     }
-    
+
     if (stepsElem) {
-      stepsElem.textContent = `${imageData.steps}`;
+      stepsElem.textContent = `${imageData.steps ?? 'n/a'}`;
     }
   }
   
@@ -1002,9 +1312,11 @@ class VeniceImageGenerator {
     optimizeButton.disabled = true;
     
     try {
-      // Prepare request body for chat API
+      // Model is resolved from /models/traits at boot; fall back if that failed.
+      const textModel = TEXT_MODEL_ID || await fetchTextModel();
+
       const chatPayload = {
-        model: "grok-41-fast", // Using Grok model for prompt optimization
+        model: textModel,
         messages: [
           {
             role: "system",
@@ -1015,47 +1327,23 @@ class VeniceImageGenerator {
             content: `Please optimize this image generation prompt: "${initialPrompt}"`
           }
         ],
-        max_tokens: 500,
-        temperature: 0.7
+        max_completion_tokens: 500,
+        temperature: 0.7,
+        // Reasoning models wrap output in <thinking> blocks - strip them so the
+        // optimizer returns a clean prompt regardless of which model resolves.
+        venice_parameters: {
+          strip_thinking_response: true,
+          include_venice_system_prompt: false
+        }
       };
-      
-      // Try direct API call first, then fallback to proxy
-      let response;
-      try {
-        response = await fetch('https://api.venice.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${getApiKey()}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(chatPayload)
-        });
-      } catch (directError) {
-        console.log('Direct API failed, trying CORS proxy');
-        const proxyUrl = 'https://api.allorigins.win/raw?url=';
-        const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/chat/completions');
-        response = await fetch(proxyUrl + targetUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${getApiKey()}`,
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-          },
-          body: JSON.stringify(chatPayload)
-        });
-      }
-      
-      // Handle API response
-      const result = await response.json();
+
+      const result = await veniceFetch('/chat/completions', { method: 'POST', body: chatPayload });
       console.log('Prompt optimization response:', result);
-      
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to optimize prompt');
-      }
-      
+
       if (result.choices && result.choices.length > 0) {
-        const optimizedPrompt = result.choices[0].message.content.trim();
-        
+        const optimizedPrompt = (result.choices[0].message?.content || '').trim();
+        if (!optimizedPrompt) throw new Error('The model returned an empty prompt');
+
         // Display optimized prompt
         const optimizedPromptText = document.getElementById('optimized-prompt-text');
         const optimizationResult = document.getElementById('optimization-result');
@@ -1173,7 +1461,7 @@ class VeniceImageGenerator {
           <div class="mt-2 flex gap-2 flex-wrap">
             <span class="text-xs bg-darker-bg text-neon-blue px-2 py-1 rounded-full">${image.model}</span>
             <span class="text-xs bg-darker-bg text-neon-pink px-2 py-1 rounded-full">${image.style}</span>
-            <span class="text-xs bg-darker-bg text-neon-green px-2 py-1 rounded-full">${image.width}×${image.height}</span>
+            <span class="text-xs bg-darker-bg text-neon-green px-2 py-1 rounded-full">${formatSize(image)}</span>
           </div>
         </div>
       `;
@@ -1236,7 +1524,7 @@ class VeniceImageGenerator {
       tagsEl.innerHTML = `
         <span style="color:var(--cyan)">${img.model}</span>
         <span style="color:var(--pink)">${img.style}</span>
-        <span style="color:var(--emerald)">${img.width}×${img.height}</span>
+        <span style="color:var(--emerald)">${formatSize(img)}</span>
       `;
     }
 
@@ -1386,8 +1674,15 @@ class VeniceImageGenerator {
       return;
     }
 
+    const selectedModel = MODELS.find(m => m.id === model);
+    if (!selectedModel) {
+      alert(`Model "${model}" is not available. Reload to refresh the model list.`);
+      return;
+    }
+
     // Get dimensions based on aspect ratio and resolution
-    const dimensions = RESOLUTION_PRESETS[aspectRatio][resolution];
+    const preset = RESOLUTION_PRESETS[aspectRatio] || RESOLUTION_PRESETS['1:1'];
+    const dimensions = preset[resolution] || preset.medium;
     const width = dimensions.width;
     const height = dimensions.height;
 
@@ -1412,92 +1707,52 @@ class VeniceImageGenerator {
     }, 100);
 
     try {
-      const payload = {
-        model: model,
+      const payload = buildImagePayload(selectedModel, {
         prompt: prompt,
-        height: height,
+        negativePrompt: negativePrompt,
+        style: style,
         width: width,
+        height: height,
+        aspectRatio: aspectRatio,
+        resolutionTier: resolution,
         steps: steps,
-        return_binary: false,
-        hide_watermark: false,
-        format: 'webp',
-        cfg_scale: 7.5,
+        cfgScale: 7.5,
         seed: Math.floor(Math.random() * 999999999),
-        enable_web_search: true // Key feature for web search models
-      };
+        format: 'webp',
+        hideWatermark: false,
+        webSearch: true
+      });
 
-      if (style && style !== "None") {
-        payload.style_preset = style;
-      }
-
-      if (negativePrompt) {
-        payload.negative_prompt = negativePrompt;
+      if (!payload.enable_web_search) {
+        console.warn(`${selectedModel.name} does not advertise web search - generating without it.`);
       }
 
       console.log('Web Search Generation payload:', payload);
 
-      let response;
-      try {
-        response = await fetch('https://api.venice.ai/api/v1/image/generate', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${getApiKey()}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        });
-      } catch (directError) {
-        console.log('Direct API failed, trying CORS proxy');
-        const proxyUrl = 'https://api.allorigins.win/raw?url=';
-        const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/image/generate');
-        response = await fetch(proxyUrl + targetUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${getApiKey()}`,
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-          },
-          body: JSON.stringify(payload)
-        });
-      }
-
-      const result = await response.json();
+      const result = await veniceFetch('/image/generate', { method: 'POST', body: payload });
       console.log('Web Search API response:', result);
 
-      if (!response.ok) {
-        const errorMsg = result.error?.message || result.error || result.message || 'Failed to generate image';
-        throw new Error(errorMsg);
-      }
-
       // Extract image data
-      let imageData = null;
-      if (result.images && Array.isArray(result.images) && result.images.length > 0) {
-        imageData = result.images[0];
-      } else if (result.image) {
-        imageData = result.image;
-      }
+      const imageData = extractImages(result)[0] || null;
 
       if (imageData) {
-        if (!imageData.startsWith('data:image')) {
-          imageData = 'data:image/png;base64,' + imageData;
-        }
-
         // Display the result
         const imageElement = document.getElementById('generated-image');
         if (imageElement) {
           imageElement.src = imageData;
 
-          // Store current image
-          const modelObj = MODELS.find(m => m.id === model);
+          // Store current image - mirror the payload the model actually got
           this.currentImage = {
             src: imageData,
             prompt: prompt,
             model: model,
-            style: style === "None" ? "No preset" : style,
-            width: width,
-            height: height,
-            steps: steps,
-            webSearch: true,
+            style: payload.style_preset || 'No preset',
+            width: payload.width || null,
+            height: payload.height || null,
+            aspectRatio: payload.aspect_ratio || null,
+            resolution: payload.resolution || null,
+            steps: payload.steps ?? 'n/a',
+            webSearch: Boolean(payload.enable_web_search),
             timestamp: new Date().toISOString()
           };
 
@@ -1654,127 +1909,62 @@ class VeniceImageGenerator {
     const height = 576;
     
     console.log(`Generating image for model: ${model.name} (${model.id})`);
-    
-    // Adjust dimensions based on model constraints
-    const widthHeightDivisor = model.constraints?.widthHeightDivisor || 8;
-    const adjustedWidth = Math.round(width / widthHeightDivisor) * widthHeightDivisor;
-    const adjustedHeight = Math.round(height / widthHeightDivisor) * widthHeightDivisor;
-    
-    // Adjust steps based on model constraints
-    let adjustedSteps = steps;
-    if (model.constraints?.steps) {
-      const maxSteps = model.constraints.steps.max || 50;
-      adjustedSteps = Math.min(steps, maxSteps);
-    }
-    
-    console.log(`Model ${model.name} - Adjusted dimensions: ${adjustedWidth}x${adjustedHeight}, steps: ${adjustedSteps}`);
-    
-    // Enable web search for specific models that benefit from it
-    const webSearchModels = ['nano-banana-pro', 'gpt-image-1-5'];
-    const enableWebSearch = webSearchModels.includes(model.id);
 
-    const payload = {
-      model: model.id,
+    // Negative prompts steer the diffusion pipeline; only models that take one
+    // get it (buildImagePayload drops it otherwise).
+    const negativePrompt = ageVerification
+      ? "blurred, censored, pixelated, low quality, distorted, bad anatomy"
+      : "nude, naked, sexual, explicit, adult content, nsfw, inappropriate";
+
+    const payload = buildImagePayload(model, {
       prompt: prompt,
-      height: adjustedHeight,
-      width: adjustedWidth,
-      steps: adjustedSteps,
-      return_binary: false,
-      hide_watermark: false, // Changed to false as per API docs
-      safe_mode: !ageVerification, // Use age verification to control safe mode
-      format: "webp", // Use webp format for better quality/compression
-      cfg_scale: 7.5, // CFG scale for better prompt adherence (0-20)
-      seed: Math.floor(Math.random() * 999999999), // Random seed for variety
-      embed_exif_metadata: false, // Don't embed generation metadata in EXIF
-      variants: 1, // Generate single variant (1-4)
-      lora_strength: 50, // Lora strength if model uses additional Loras (0-100)
-      enable_web_search: enableWebSearch // Enable web search for Nano Banana Pro and GPT Image 1.5
-    };
+      negativePrompt: negativePrompt,
+      style: style,
+      width: width,
+      height: height,
+      aspectRatio: '16:9',
+      resolutionTier: 'medium',
+      steps: steps,
+      cfgScale: 7.5,
+      seed: Math.floor(Math.random() * 999999999),
+      format: 'webp',
+      hideWatermark: false,
+      embedMetadata: false,
+      safeMode: !ageVerification,
+      loraStrength: 50,
+      // Web-search-capable models get it for free here; the rest never see the flag.
+      webSearch: supportsWebSearch(model)
+    });
 
-    if (enableWebSearch) {
-      console.log(`Web search enabled for ${model.name}`);
-    }
-    
-    // Add style if not "None"
-    if (style && style !== "None") {
-      payload.style_preset = style;
-    }
-    
-    // Add negative prompt for better control based on age verification
-    if (!ageVerification) {
-      // Safe mode - add negative prompts to avoid adult content
-      payload.negative_prompt = "nude, naked, sexual, explicit, adult content, nsfw, inappropriate";
-    } else {
-      // Adult mode - add negative prompts to improve quality
-      payload.negative_prompt = "blurred, censored, pixelated, low quality, distorted, bad anatomy";
-    }
-    
     console.log(`Payload for ${model.name}:`, payload);
-    
+
     try {
-      // Try direct API call first, then fallback to proxy
-      let response;
-      try {
-        response = await fetch('https://api.venice.ai/api/v1/image/generate', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${getApiKey()}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        });
-      } catch (directError) {
-        console.log('Direct API failed, trying CORS proxy');
-        const proxyUrl = 'https://api.allorigins.win/raw?url=';
-        const targetUrl = encodeURIComponent('https://api.venice.ai/api/v1/image/generate');
-        response = await fetch(proxyUrl + targetUrl, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${getApiKey()}`,
-            'Content-Type': 'application/json',
-            'X-Requested-With': 'XMLHttpRequest'
-          },
-          body: JSON.stringify(payload)
-        });
-      }
-      
-      const result = await response.json();
+      const result = await veniceFetch('/image/generate', { method: 'POST', body: payload });
       console.log(`Response for ${model.name}:`, result);
-      
+
       // Check if there are any safety/content filter warnings in the response
       if (result.warnings || result.safety_warnings || result.content_filter) {
         console.warn(`Safety warnings for ${model.name}:`, result.warnings || result.safety_warnings || result.content_filter);
       }
-      
-      if (!response.ok) {
-        const errorMsg = result.error?.message || result.error || result.message || `HTTP ${response.status}`;
-        console.error(`Model ${model.name} failed:`, errorMsg);
-        throw new Error(`${errorMsg} (Status: ${response.status})`);
-      }
-      
-      // Extract image data
-      let imageData = null;
-      if (result.images && Array.isArray(result.images) && result.images.length > 0) {
-        imageData = result.images[0];
-      } else if (result.image) {
-        imageData = result.image;
-      }
-      
+
+      const imageData = extractImages(result)[0] || null;
       if (!imageData) {
         console.error(`No image data for ${model.name}:`, result);
         throw new Error('No image data received from API');
       }
-      
+
       console.log(`Successfully generated image for ${model.name}`);
-      
+
       return {
-        src: `data:image/png;base64,${imageData}`,
+        src: imageData,
         model: model.name,
         prompt: prompt,
-        style: style || 'None',
-        width: adjustedWidth,
-        height: adjustedHeight,
-        steps: adjustedSteps,
+        style: payload.style_preset || 'None',
+        width: payload.width || null,
+        height: payload.height || null,
+        aspectRatio: payload.aspect_ratio || null,
+        resolution: payload.resolution || null,
+        steps: payload.steps ?? 'n/a',
         safeMode: !ageVerification
       };
     } catch (error) {
@@ -1911,12 +2101,9 @@ class VeniceImageGenerator {
         const safeMode = result.image.safeMode ? 'Safe Mode' : 'Adult Mode';
         const safeModeColor = result.image.safeMode ? 'var(--neon-green)' : 'var(--neon-pink)';
         
-        // Calculate cost based on model pricing and image dimensions
-        let cost = 0;
-        if (result.model.pricing && result.model.pricing.generation) {
-          cost = result.model.pricing.generation.usd || 0;
-        }
-        
+        // Cost may be flat or tiered by resolution
+        const cost = getModelPrice(result.model, result.image?.resolution);
+
         // Add to total cost
         totalCost += cost;
         successfulGenerations++;
@@ -1924,12 +2111,12 @@ class VeniceImageGenerator {
         gridItem.innerHTML = `
           <div class="comparison-image-container">
             <img src="${result.image.src}" alt="${result.model.name}" class="comparison-image"
-                 onclick="openImageModal('${result.image.src}', '${result.model.name}', '${result.model.id}', '${result.image.width}', '${result.image.height}', '${result.image.steps}', '${result.image.style}', '${generationTime}', '${safeMode}', '${cost.toFixed(4)}')">
+                 onclick="openImageModal('${result.image.src}', '${result.model.name}', '${result.model.id}', '${result.image.width || ''}', '${result.image.height || ''}', '${result.image.steps}', '${result.image.style}', '${generationTime}', '${safeMode}', '${cost.toFixed(4)}')">
           </div>
           <div class="comparison-card-content">
             <h3 class="comparison-model-name">${result.model.name}</h3>
             <div class="comparison-metadata">
-              <span class="comparison-badge" style="background: var(--neon-blue); color: white;">${result.image.width}×${result.image.height}</span>
+              <span class="comparison-badge" style="background: var(--neon-blue); color: white;">${formatSize(result.image)}</span>
               <span class="comparison-badge" style="background: var(--neon-pink); color: white;">${result.image.steps} steps</span>
               <span class="comparison-badge" style="background: var(--neon-green); color: white;">${result.image.style}</span>
               <span class="comparison-badge" style="background: var(--neon-purple); color: white;">${generationTime}</span>
@@ -2039,11 +2226,13 @@ class VeniceImageGenerator {
       const safeMode = imageResult.safeMode ? 'Safe Mode' : 'Adult Mode';
       const safeModeColor = imageResult.safeMode ? 'var(--mcm-olive)' : 'var(--mcm-orange)';
 
-      // Calculate cost based on model pricing
-      let cost = 0;
-      if (model.pricing && model.pricing.generation) {
-        cost = model.pricing.generation.usd || 0;
-      }
+      // Cost may be flat or tiered by resolution
+      const cost = getModelPrice(model, imageResult.resolution);
+
+      // Ratio-sized models report a ratio instead of pixel dimensions
+      const sizeLabel = (imageResult.width && imageResult.height)
+        ? `${imageResult.width}×${imageResult.height}`
+        : [imageResult.aspectRatio, imageResult.resolution].filter(Boolean).join(' · ') || 'default';
 
       // Store data for statistics table
       this.allComparisonData.push({
@@ -2066,13 +2255,13 @@ class VeniceImageGenerator {
       gridItem.innerHTML = `
         <div class="comparison-image-container">
           <img src="${imageResult.src}" alt="${model.name}" class="comparison-image"
-               onclick="openImageModal('${imageResult.src}', '${model.name}', '${model.id}', '${imageResult.width}', '${imageResult.height}', '${imageResult.steps}', '${imageResult.style}', '${generationTime.toFixed(1)}s', '${safeMode}', '${cost.toFixed(4)}')">
+               onclick="openImageModal('${imageResult.src}', '${model.name}', '${model.id}', '${imageResult.width || ''}', '${imageResult.height || ''}', '${imageResult.steps}', '${imageResult.style}', '${generationTime.toFixed(1)}s', '${safeMode}', '${cost.toFixed(4)}')">
         </div>
         <div class="comparison-card-content">
           <h3 class="comparison-model-name">${model.name}</h3>
           <p class="comparison-model-id">${model.id}</p>
           <div class="comparison-metadata">
-            <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-teal), #0097A7); color: white;"><i class="fas fa-expand-alt"></i> ${imageResult.width}×${imageResult.height}</span>
+            <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-teal), #0097A7); color: white;"><i class="fas fa-expand-alt"></i> ${sizeLabel}</span>
             <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-orange), #E65100); color: white;"><i class="fas fa-layer-group"></i> ${imageResult.steps}</span>
             <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-olive), #558B2F); color: white;"><i class="fas fa-paint-brush"></i> ${imageResult.style}</span>
             <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-mustard), #FF8F00); color: var(--text-primary);"><i class="fas fa-clock"></i> ${generationTime.toFixed(1)}s</span>
@@ -2181,7 +2370,7 @@ class VeniceImageGenerator {
                 '<span style="background: var(--mcm-olive); color: white; padding: 0.25rem 0.75rem; border-radius: 2px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Success</span>' :
                 '<span style="background: var(--mcm-orange); color: white; padding: 0.25rem 0.75rem; border-radius: 2px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;">Failed</span>';
 
-              const resolution = data.success ? `${data.image.width}×${data.image.height}` : '-';
+              const resolution = data.success ? formatSize(data.image) : '-';
               const steps = data.success ? data.image.steps : '-';
 
               return `
@@ -2265,7 +2454,7 @@ function openImageModal(src, modelName, modelId, width, height, steps, style, ge
 
   // Set metadata with pill-style badges
   modalMetadata.innerHTML = `
-    <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-teal), #0097A7); color: white;"><i class="fas fa-expand-alt"></i> ${width}×${height}</span>
+    <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-teal), #0097A7); color: white;"><i class="fas fa-expand-alt"></i> ${(width && height) ? `${width}×${height}` : 'model default'}</span>
     <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-orange), #E65100); color: white;"><i class="fas fa-layer-group"></i> ${steps}</span>
     <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-olive), #558B2F); color: white;"><i class="fas fa-paint-brush"></i> ${style}</span>
     <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-mustard), #FF8F00); color: var(--text-primary);"><i class="fas fa-clock"></i> ${generationTime}</span>
@@ -2356,7 +2545,7 @@ function navigateImage(direction) {
       const generationTime = result.generationTime ? `${result.generationTime.toFixed(1)}s` : 'N/A';
 
       modalMetadata.innerHTML = `
-        <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-teal), #0097A7); color: white;"><i class="fas fa-expand-alt"></i> ${result.image.width}×${result.image.height}</span>
+        <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-teal), #0097A7); color: white;"><i class="fas fa-expand-alt"></i> ${formatSize(result.image)}</span>
         <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-orange), #E65100); color: white;"><i class="fas fa-layer-group"></i> ${result.image.steps}</span>
         <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-olive), #558B2F); color: white;"><i class="fas fa-paint-brush"></i> ${result.image.style}</span>
         <span class="comparison-badge" style="background: linear-gradient(135deg, var(--mcm-mustard), #FF8F00); color: var(--text-primary);"><i class="fas fa-clock"></i> ${generationTime}</span>
